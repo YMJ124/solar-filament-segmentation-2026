@@ -1,0 +1,14 @@
+# Versions used by the reproducible solar-filament environment.
+# The validated local PyTorch/TorchVision builds are +cu128 variants.
+numpy==2.4.6
+scipy==1.17.1
+scikit-image==0.26.0
+Pillow==11.1.0
+opencv-python-headless==5.0.0.93
+pycocotools==2.0.11
+tqdm==4.70.1
+torch==2.8.0
+torchvision==0.23.0
+segmentation-models-pytorch==0.5.0
+PyYAML==6.0.3
+pytest==9.1.1
