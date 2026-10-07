@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import torch
+import cv2
 
 
 def sliding_starts(length: int, tile_size: int, step: int) -> list[int]:
@@ -59,3 +60,37 @@ def predict_sliding_window(model, image: np.ndarray, device,
             )
             probability_count[y0:y0 + tile_size, x0:x0 + tile_size] += blend
     return probability_sum / np.maximum(probability_count, 1e-6)
+
+
+@torch.inference_mode()
+def predict_full_resize(model, image: np.ndarray, device,
+                        input_size: int = 512) -> np.ndarray:
+    """Infer on a resized complete disk, then restore original resolution."""
+    image = np.asarray(image, dtype=np.float32)
+    if image.ndim != 2:
+        raise ValueError("image must be a 2D grayscale array")
+    if input_size < 32:
+        raise ValueError("input_size must be >= 32")
+    original_shape = image.shape
+    resized = cv2.resize(
+        image, (input_size, input_size), interpolation=cv2.INTER_LINEAR
+    )
+    tensor = torch.from_numpy(resized[None, None]).to(device)
+    probability = torch.sigmoid(model(tensor))[0, 0].detach().cpu().numpy()
+    return cv2.resize(
+        probability, (original_shape[1], original_shape[0]),
+        interpolation=cv2.INTER_LINEAR,
+    ).astype(np.float32, copy=False)
+
+
+def predict_image(model, image: np.ndarray, device, *, inference_mode: str,
+                  tile_size: int, overlap: float = 0.25,
+                  tile_batch_size: int = 1) -> np.ndarray:
+    if inference_mode == "full_resize":
+        return predict_full_resize(model, image, device, input_size=tile_size)
+    if inference_mode == "sliding_window":
+        return predict_sliding_window(
+            model, image, device, tile_size=tile_size, overlap=overlap,
+            tile_batch_size=tile_batch_size,
+        )
+    raise ValueError(f"unsupported inference_mode: {inference_mode!r}")

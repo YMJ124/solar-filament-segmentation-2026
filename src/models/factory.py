@@ -8,6 +8,7 @@ from typing import Any, Mapping
 import torch
 
 from .unet import GlobalUNet, SMPUNet
+from .flat_unet import FlatUNet
 
 
 def normalize_model_config(kind: str, config: Mapping[str, Any] | None = None) -> dict[str, Any]:
@@ -20,6 +21,9 @@ def normalize_model_config(kind: str, config: Mapping[str, Any] | None = None) -
     if config["architecture"] == "resnet34_unet":
         config["architecture"] = "smp_unet"
         config.setdefault("encoder_name", "resnet34")
+    if config["architecture"] == "flat_unet":
+        for key in ("encoder_name", "encoder_weights", "input_mean", "input_std"):
+            config.pop(key, None)
     return config
 
 
@@ -37,6 +41,11 @@ def build_model(kind: str, config: Mapping[str, Any] | None = None,
             encoder_weights=weights,
             input_mean=float(cfg.get("input_mean", 0.326732)),
             input_std=float(cfg.get("input_std", 0.223022)),
+        )
+    if kind == "global" and architecture == "flat_unet":
+        return FlatUNet(
+            channels=int(cfg.get("channels", 32)),
+            simplified_blocks=cfg.get("simplified_blocks", [1, 1, 1, 1, 0]),
         )
     raise ValueError(f"unsupported model configuration: kind={kind!r}, architecture={architecture!r}")
 

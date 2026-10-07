@@ -26,7 +26,7 @@ def main() -> None:
     parser.add_argument("--config", default="configs/global_resnet34_fold0.yaml")
     parser.add_argument("--steps", type=int, default=20)
     parser.add_argument("--batch-size", type=int)
-    parser.add_argument("--lr", type=float, default=3e-4)
+    parser.add_argument("--lr", type=float)
     parser.add_argument("--output")
     parser.add_argument(
         "--require-decrease", action=argparse.BooleanOptionalAction, default=True
@@ -57,6 +57,7 @@ def main() -> None:
         image_size=int(data_cfg["image_size"]),
         train=True,
         positive_crop_probability=float(data_cfg["positive_crop_probability"]),
+        sample_mode=str(data_cfg["sample_mode"]),
         cache_dir=data_cfg.get("mask_cache_dir"),
     )
     dataset.set_epoch(0)
@@ -66,9 +67,21 @@ def main() -> None:
     image = batch["image"].to(device)
     target = batch["semantic_mask"].to(device)
     model = build_model("global", config["model"]).to(device).train()
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
+    optimizer_class = (
+        torch.optim.Adam
+        if config["training"]["optimizer"] == "adam" else torch.optim.AdamW
+    )
+    optimizer = optimizer_class(
+        model.parameters(),
+        lr=args.lr or float(config["training"]["learning_rate"]),
+        weight_decay=float(config["training"]["weight_decay"]),
+    )
     scaler = torch.amp.GradScaler("cuda", enabled=device.type == "cuda")
-    criterion = GlobalLoss()
+    loss_config = config["training"]["loss"]
+    criterion = GlobalLoss(
+        mode=loss_config["name"],
+        max_positive_weight=loss_config["max_positive_weight"],
+    )
     losses = []
     if device.type == "cuda":
         torch.cuda.reset_peak_memory_stats(device)

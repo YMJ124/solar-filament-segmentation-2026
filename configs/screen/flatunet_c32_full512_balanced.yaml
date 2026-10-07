@@ -1,0 +1,46 @@
+schema_version: 3
+run: {name: screen_flatunet_c32_full512_balanced, seed: 2026, deterministic: true}
+data:
+  data_root: MAGFiLO_1.0_Kaggle_2026
+  fold_manifest: data/manifests/train_folds.csv
+  validation_file_list: data/manifests/screen_fold0_32.json
+  mask_cache_dir: data/cache/medoid_semantic_v2
+  sample_mode: full_resize
+  fold: 0
+  image_size: 512
+  positive_crop_probability: 0.7
+  num_workers: 2
+model:
+  kind: global
+  architecture: flat_unet
+  encoder_name: null
+  encoder_weights: null
+  channels: 32
+  simplified_blocks: [1, 1, 1, 1, 0]
+training:
+  epochs: 3
+  batch_size: 2
+  gradient_accumulation: 2
+  learning_rate: 0.001
+  weight_decay: 0.0
+  optimizer: adam
+  loss: {name: balanced_bce_dice, max_positive_weight: 20.0}
+  warmup_epochs: 1
+  amp: true
+  gradient_clip_norm: 1.0
+  max_steps: 80
+  max_validation_batches: 16
+validation:
+  full_pq_enabled: true
+  full_pq_interval: 1
+  inference_mode: full_resize
+  tile_size: 512
+  tile_batch_size: 1
+  overlap: 0.0
+  threshold: 0.3
+  min_area: 200
+  closing_iterations: 1
+  max_instances: 128
+  max_images: 32
+  save_best_oof: false
+artifacts: {run_dir: artifacts/screens/flatunet_c32_full512_balanced}

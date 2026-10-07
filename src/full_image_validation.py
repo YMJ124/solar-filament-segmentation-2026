@@ -18,7 +18,7 @@ from src.data.coco import CocoAnnotations
 from src.data.masks import annotations_to_rles
 from src.metrics.pq import aggregate_counts, pairwise_rle_iou, score_iou_matrix
 from src.metrics.segmentation import segmentation_metrics
-from src.inference import predict_sliding_window
+from src.inference import predict_image
 from src.postprocess.instances import probability_to_instance_labels
 from src.submission.rle import label_map_to_rles
 from src.io_utils import atomic_write_json
@@ -123,8 +123,11 @@ def evaluate_full_images(
             file_name = str(record["file_name"])
             with Image.open(image_dir / file_name) as image:
                 image_array = np.asarray(image.convert("L"), dtype=np.float32) / 255.0
-            prediction = predict_sliding_window(
+            prediction = predict_image(
                 model, image_array, device,
+                inference_mode=str(
+                    validation_config.get("inference_mode", "sliding_window")
+                ),
                 tile_size=int(validation_config["tile_size"]),
                 overlap=float(validation_config.get("overlap", 0.25)),
                 tile_batch_size=int(validation_config.get("tile_batch_size", 8)),
@@ -208,6 +211,7 @@ def evaluate_full_images(
             key: validation_config.get(key, default)
             for key, default in {
                 "tile_size": 512,
+                "inference_mode": "sliding_window",
                 "tile_batch_size": 8,
                 "overlap": 0.25,
                 "threshold": 0.5,

@@ -7,6 +7,7 @@ from typing import Any
 
 import numpy as np
 import torch
+import cv2
 from PIL import Image
 from torch.utils.data import Dataset
 
@@ -90,6 +91,21 @@ def _crop(arrays: list[np.ndarray], size: int, rng: np.random.Generator, train: 
     return [a[..., y:y + size, x:x + size] for a in arrays]
 
 
+def _resize_full(arrays: list[np.ndarray], size: int) -> list[np.ndarray]:
+    """Resize a complete physical image and its semantic target."""
+    image, semantic = arrays
+    resized_image = cv2.resize(
+        image[0], (size, size), interpolation=cv2.INTER_LINEAR
+    )[None]
+    resized_semantic = cv2.resize(
+        semantic[0], (size, size), interpolation=cv2.INTER_NEAREST
+    )[None]
+    return [
+        np.asarray(resized_image, dtype=np.float32),
+        np.asarray(resized_semantic > 0, dtype=np.float32),
+    ]
+
+
 class FilamentDataset(Dataset):
     """Lazy PyTorch dataset for cropped filament-segmentation targets."""
 
@@ -97,11 +113,15 @@ class FilamentDataset(Dataset):
                  fold: int | None = None, seed: int = 2026,
                  image_size: int = 512, train: bool = True, records: list[dict[str, Any]] | None = None,
                  positive_crop_probability: float = 0.7, cache_dir: str | Path | None = None,
-                 fold_manifest: str | Path = "data/manifests/train_folds.csv"):
+                 fold_manifest: str | Path = "data/manifests/train_folds.csv",
+                 sample_mode: str = "crop"):
         self.root = Path(data_root)
         self.train_dir = self.root / "train/train_images"
         self.image_size, self.train = image_size, train
         self.positive_crop_probability = positive_crop_probability
+        if sample_mode not in {"crop", "full_resize"}:
+            raise ValueError("sample_mode must be 'crop' or 'full_resize'")
+        self.sample_mode = sample_mode
         self.cache_dir = Path(cache_dir) if cache_dir else None
         self.fold_manifest = Path(fold_manifest)
         self.seed = int(seed + (fold or 0))
@@ -169,11 +189,14 @@ class FilamentDataset(Dataset):
             ) if self.coco else []
             semantic = _semantic_target(instances, image_array.shape)
             instance_boxes = _instance_boxes(instances)
-        arrays = _crop(
-            [image_array[None], semantic[None]],
-            self.image_size, rng, self.train, self.positive_crop_probability,
-            instance_boxes,
-        )
+        arrays = [image_array[None], semantic[None]]
+        if self.sample_mode == "full_resize":
+            arrays = _resize_full(arrays, self.image_size)
+        else:
+            arrays = _crop(
+                arrays, self.image_size, rng, self.train,
+                self.positive_crop_probability, instance_boxes,
+            )
         image_array, semantic = [x[0] for x in arrays]
         if self.train and rng.random() < 0.5:
             image_array, semantic = [np.flip(x, axis=1).copy() for x in (image_array, semantic)]
