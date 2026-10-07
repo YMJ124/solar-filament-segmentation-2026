@@ -265,7 +265,6 @@ def main() -> None:
         "seed": seed,
         "image_size": int(data_cfg["image_size"]),
         "positive_crop_probability": float(data_cfg["positive_crop_probability"]),
-        "sample_mode": str(data_cfg["sample_mode"]),
         "cache_dir": data_cfg.get("mask_cache_dir"),
     }
     train_set = FilamentDataset(records=train_records, train=True, **dataset_options)
@@ -282,11 +281,9 @@ def main() -> None:
     kind = str(model_cfg["kind"])
     normalized_model_cfg = normalize_model_config(kind, model_cfg)
     model = build_model(kind, normalized_model_cfg, initialize_pretrained=not bool(args.resume)).to(device)
-    optimizer_class = (
-        torch.optim.Adam if train_cfg["optimizer"] == "adam" else torch.optim.AdamW
-    )
-    optimizer = optimizer_class(
-        model.parameters(), lr=float(train_cfg["learning_rate"]),
+    optimizer = torch.optim.AdamW(
+        model.parameters(),
+        lr=float(train_cfg["learning_rate"]),
         weight_decay=float(train_cfg["weight_decay"]),
     )
     scaler = torch.amp.GradScaler(
@@ -362,7 +359,6 @@ def main() -> None:
             max_steps=train_cfg.get("max_steps"),
             gradient_accumulation=int(train_cfg["gradient_accumulation"]),
             gradient_clip_norm=float(train_cfg["gradient_clip_norm"]),
-            loss_config=train_cfg["loss"],
         )
         global_step += int(train_stats["optimizer_steps"])
         valid_stats = validate_loss(
@@ -371,7 +367,6 @@ def main() -> None:
             device,
             kind,
             train_cfg.get("max_validation_batches"),
-            train_cfg["loss"],
         )
         lr_used = float(optimizer.param_groups[0]["lr"])
         scheduler.step()

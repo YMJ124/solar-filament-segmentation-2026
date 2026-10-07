@@ -15,7 +15,7 @@ import numpy as np
 import torch
 from PIL import Image
 
-from src.inference import predict_image
+from src.inference import predict_sliding_window
 from src.io_utils import atomic_write_json
 from src.models import load_model_from_checkpoint
 from src.postprocess.instances import probability_to_instance_labels
@@ -33,10 +33,6 @@ def main() -> None:
     parser.add_argument("--closing-iterations", type=int, default=1)
     parser.add_argument("--max-instances", type=int, default=128)
     parser.add_argument("--tile-size", type=int, default=512)
-    parser.add_argument(
-        "--inference-mode", choices=["sliding_window", "full_resize"],
-        default="sliding_window",
-    )
     parser.add_argument("--tile-batch-size", type=int, default=2)
     parser.add_argument("--overlap", type=float, default=0.25)
     parser.add_argument(
@@ -57,10 +53,9 @@ def main() -> None:
     for image_path in image_paths:
         with Image.open(image_path) as image:
             original = np.asarray(image.convert("L"), dtype=np.float32) / 255.0
-        probability = predict_image(
-            model, original, device, inference_mode=args.inference_mode,
-            tile_size=args.tile_size, overlap=args.overlap,
-            tile_batch_size=args.tile_batch_size,
+        probability = predict_sliding_window(
+            model, original, device, args.tile_size,
+            overlap=args.overlap, tile_batch_size=args.tile_batch_size,
         )
         labels = probability_to_instance_labels(
             probability,
@@ -98,7 +93,6 @@ def main() -> None:
         "checkpoint": args.checkpoint,
         "inference": {
             "tile_size": args.tile_size,
-            "inference_mode": args.inference_mode,
             "tile_batch_size": args.tile_batch_size,
             "overlap": args.overlap,
             "threshold": args.threshold,

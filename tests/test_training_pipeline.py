@@ -4,11 +4,10 @@ import random
 
 torch = pytest.importorskip("torch")
 
-from src.data.dataset import _crop, _resize_full, _semantic_target
+from src.data.dataset import _crop, _semantic_target
 from src.engine import restore_checkpoint, save_checkpoint, train_one_epoch
 from src.full_image_validation import _degree_distribution, _positive_score_distribution
 from src.models import GlobalUNet, build_model
-from src.losses import GlobalLoss
 from src.training_config import load_training_config
 
 
@@ -69,27 +68,6 @@ def test_semantic_target_is_union_of_instances():
     second[18:30, 20:31] = True
     semantic = _semantic_target([first, second])
     np.testing.assert_array_equal(semantic.astype(bool), first | second)
-
-
-def test_full_resize_preserves_complete_frame_and_binary_mask():
-    image = np.linspace(0, 1, 64 * 64, dtype=np.float32).reshape(1, 64, 64)
-    mask = np.zeros((1, 64, 64), dtype=np.float32)
-    mask[:, 2:8, 2:8] = 1
-    mask[:, 54:62, 54:62] = 1
-    resized_image, resized_mask = _resize_full([image, mask], 32)
-    assert resized_image.shape == resized_mask.shape == (1, 32, 32)
-    assert set(np.unique(resized_mask)) <= {0.0, 1.0}
-    assert resized_mask[:, :6, :6].sum() > 0
-    assert resized_mask[:, -6:, -6:].sum() > 0
-
-
-def test_balanced_loss_penalizes_sparse_false_negative_more():
-    logits = torch.zeros(1, 1, 16, 16)
-    target = torch.zeros_like(logits)
-    target[:, :, 0, 0] = 1
-    ordinary = GlobalLoss("bce_dice")(logits, target)
-    balanced = GlobalLoss("balanced_bce_dice", 20.0)(logits, target)
-    assert balanced > ordinary
 
 
 def test_max_steps_uses_processed_batch_count():

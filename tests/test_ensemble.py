@@ -3,8 +3,8 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from src.models import FlatUNet, GlobalUNet
-from src.inference import predict_full_resize, predict_sliding_window, sliding_starts
+from src.models import GlobalUNet
+from src.inference import predict_sliding_window, sliding_starts
 from src.metrics.segmentation import segmentation_metrics
 from src.postprocess.instances import (
     probability_to_instance_labels,
@@ -21,14 +21,6 @@ from src.submission.rle import encode_mask, label_map_to_rles
 def test_model_shape():
     image = torch.randn(1, 1, 64, 64)
     assert GlobalUNet(base=4)(image).shape == (1, 1, 64, 64)
-
-
-def test_flat_unet_shape_and_parameter_count():
-    model = FlatUNet(channels=32, simplified_blocks=[1, 1, 1, 1, 0])
-    with torch.no_grad():
-        output = model(torch.randn(2, 1, 64, 64))
-    assert output.shape == (2, 1, 64, 64)
-    assert sum(parameter.numel() for parameter in model.parameters()) == 258081
 
 
 def test_connected_component_postprocess():
@@ -83,19 +75,6 @@ def test_tile_batching_does_not_change_sliding_prediction():
         predict_sliding_window(
             model, image, torch.device("cpu"), tile_size=64
         )
-
-
-def test_full_resize_prediction_restores_original_shape():
-    class ConstantModel(torch.nn.Module):
-        def forward(self, image):
-            return torch.zeros_like(image)
-
-    prediction = predict_full_resize(
-        ConstantModel().eval(), np.zeros((45, 61), np.float32),
-        torch.device("cpu"), input_size=32,
-    )
-    assert prediction.shape == (45, 61)
-    np.testing.assert_allclose(prediction, 0.5, atol=1e-6)
 
 
 def test_metrics_and_submission_audit():

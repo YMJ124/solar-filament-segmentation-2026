@@ -26,10 +26,6 @@ def main() -> None:
     parser.add_argument("--fold", type=int, default=0)
     parser.add_argument("--fold-manifest", default="data/manifests/train_folds.csv")
     parser.add_argument("--tile-size", type=int, default=256)
-    parser.add_argument(
-        "--inference-mode", choices=["sliding_window", "full_resize"],
-        default="sliding_window",
-    )
     parser.add_argument("--tile-batch-size", type=int, default=8)
     parser.add_argument("--overlap", type=float, default=0.25)
     parser.add_argument("--threshold", type=float, default=0.5)
@@ -55,7 +51,6 @@ def main() -> None:
         device,
         {
             "tile_size": args.tile_size,
-            "inference_mode": args.inference_mode,
             "tile_batch_size": args.tile_batch_size,
             "overlap": args.overlap,
             "threshold": args.threshold,

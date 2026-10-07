@@ -22,14 +22,13 @@ def _merge(target: dict, updates: Mapping[str, Any]) -> dict:
 
 def default_training_config() -> dict[str, Any]:
     return {
-        "schema_version": 3,
+        "schema_version": 2,
         "run": {"name": "global_resnet34_fold0", "seed": 2026, "deterministic": True},
         "data": {
             "data_root": "MAGFiLO_1.0_Kaggle_2026",
             "fold_manifest": "data/manifests/train_folds.csv",
             "validation_file_list": None,
             "mask_cache_dir": "data/cache/medoid_semantic_v2",
-            "sample_mode": "crop",
             "fold": 0,
             "image_size": 256,
             "positive_crop_probability": 0.7,
@@ -49,8 +48,6 @@ def default_training_config() -> dict[str, Any]:
             "gradient_accumulation": 2,
             "learning_rate": 3.0e-4,
             "weight_decay": 1.0e-4,
-            "optimizer": "adamw",
-            "loss": {"name": "bce_dice", "max_positive_weight": 20.0},
             "warmup_epochs": 3,
             "amp": True,
             "gradient_clip_norm": 1.0,
@@ -59,7 +56,6 @@ def default_training_config() -> dict[str, Any]:
         },
         "validation": {
             "full_pq_enabled": True,
-            "inference_mode": "sliding_window",
             "full_pq_interval": 5,
             "tile_size": 256,
             "tile_batch_size": 8,
@@ -79,19 +75,12 @@ def validate_training_config(config: Mapping[str, Any]) -> None:
     kind = config["model"]["kind"]
     if kind != "global":
         raise ValueError(f"unknown model kind: {kind}")
-    if config["model"]["architecture"] not in {
-        "compact_unet", "smp_unet", "resnet34_unet", "flat_unet"
-    }:
-        raise ValueError("unsupported model.architecture")
+    if config["model"]["architecture"] not in {"compact_unet", "smp_unet", "resnet34_unet"}:
+        raise ValueError("model.architecture must be compact_unet or smp_unet")
     if config["model"]["architecture"] == "smp_unet" and not str(
         config["model"].get("encoder_name", "")
     ).strip():
         raise ValueError("smp_unet requires model.encoder_name")
-    if config["model"]["architecture"] == "flat_unet":
-        if int(config["model"].get("channels", 0)) < 1:
-            raise ValueError("flat_unet requires positive model.channels")
-        if len(config["model"].get("simplified_blocks", [])) != 5:
-            raise ValueError("flat_unet requires five model.simplified_blocks values")
     if int(config["training"]["epochs"]) < 1:
         raise ValueError("training.epochs must be >= 1")
     if int(config["training"]["batch_size"]) < 1:
@@ -100,18 +89,9 @@ def validate_training_config(config: Mapping[str, Any]) -> None:
         raise ValueError("training.gradient_accumulation must be >= 1")
     if float(config["training"]["learning_rate"]) <= 0:
         raise ValueError("training.learning_rate must be positive")
-    if config["training"]["optimizer"] not in {"adam", "adamw"}:
-        raise ValueError("training.optimizer must be adam or adamw")
-    loss = config["training"]["loss"]
-    if loss["name"] not in {"bce_dice", "balanced_bce_dice"}:
-        raise ValueError("training.loss.name is unsupported")
-    if float(loss["max_positive_weight"]) < 1:
-        raise ValueError("training.loss.max_positive_weight must be >= 1")
     image_size = int(config["data"]["image_size"])
     if image_size < 32 or image_size % 32:
         raise ValueError("data.image_size must be >= 32 and divisible by 32")
-    if config["data"]["sample_mode"] not in {"crop", "full_resize"}:
-        raise ValueError("data.sample_mode must be crop or full_resize")
     positive_probability = float(config["data"]["positive_crop_probability"])
     if not 0 <= positive_probability <= 1:
         raise ValueError("data.positive_crop_probability must be in [0, 1]")
@@ -121,10 +101,6 @@ def validate_training_config(config: Mapping[str, Any]) -> None:
     tile_size = int(config["validation"]["tile_size"])
     if tile_size < 32 or tile_size % 32:
         raise ValueError("validation.tile_size must be >= 32 and divisible by 32")
-    if config["validation"]["inference_mode"] not in {
-        "sliding_window", "full_resize"
-    }:
-        raise ValueError("validation.inference_mode must be sliding_window or full_resize")
     if not 0 <= float(config["validation"]["overlap"]) < 1:
         raise ValueError("validation.overlap must be in [0, 1)")
     if not 0 < float(config["validation"]["threshold"]) < 1:

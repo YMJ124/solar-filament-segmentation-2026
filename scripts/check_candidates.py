@@ -36,11 +36,7 @@ def main() -> None:
         target = torch.zeros_like(image)
         with torch.autocast(device_type=device.type, enabled=device.type == "cuda"):
             output = model(image)
-            loss_config = config["training"]["loss"]
-            loss = GlobalLoss(
-                mode=loss_config["name"],
-                max_positive_weight=loss_config["max_positive_weight"],
-            )(output, target)
+            loss = GlobalLoss()(output, target)
         loss.backward()
         report = {
             "config": path,

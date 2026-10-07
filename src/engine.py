@@ -19,14 +19,10 @@ from .losses import GlobalLoss
 CHECKPOINT_SCHEMA_VERSION = 2
 
 
-def _loss_for(kind, loss_config=None):
+def _loss_for(kind):
     if kind != "global":
         raise ValueError(f"single-model core only supports kind='global', got {kind!r}")
-    loss_config = dict(loss_config or {})
-    return GlobalLoss(
-        mode=str(loss_config.get("name", "bce_dice")),
-        max_positive_weight=float(loss_config.get("max_positive_weight", 20.0)),
-    )
+    return GlobalLoss()
 
 
 def _batch_loss(model, batch, device, criterion):
@@ -50,14 +46,14 @@ def _optimizer_step(model, optimizer, scaler, use_amp: bool, gradient_clip_norm:
 
 def train_one_epoch(model, loader, optimizer, device, kind="global", scaler=None,
                     max_steps=None, gradient_accumulation=1,
-                    gradient_clip_norm=1.0, loss_config=None):
+                    gradient_clip_norm=1.0):
     """Train one epoch with bounded AMP and true gradient accumulation."""
     from tqdm import tqdm
 
     if gradient_accumulation < 1:
         raise ValueError("gradient_accumulation must be >= 1")
     model.train()
-    criterion = _loss_for(kind, loss_config)
+    criterion = _loss_for(kind)
     total = 0.0
     processed = 0
     optimizer_steps = 0
@@ -107,10 +103,9 @@ def train_one_epoch(model, loader, optimizer, device, kind="global", scaler=None
 
 
 @torch.no_grad()
-def validate_loss(model, loader, device, kind="global", max_batches=None,
-                  loss_config=None):
+def validate_loss(model, loader, device, kind="global", max_batches=None):
     model.eval()
-    criterion = _loss_for(kind, loss_config)
+    criterion = _loss_for(kind)
     total = 0.0
     processed = 0
     for step, batch in enumerate(loader):
