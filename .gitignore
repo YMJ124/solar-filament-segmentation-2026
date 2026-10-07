@@ -9,6 +9,8 @@ artifacts/*
 artifacts/archive/*
 !artifacts/archive/retired_model_b/
 !artifacts/archive/retired_model_b/**
+!artifacts/archive/retired_screen_candidates/
+!artifacts/archive/retired_screen_candidates/**
 logs/
 MAGFiLO_1.0_Kaggle_2026/
 data/processed/
@@ -25,3 +27,4 @@ kaggle_kernels/*/output/
 wandb/
 kaggle.json
 *.zip
+/*.pt

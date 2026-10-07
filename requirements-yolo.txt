@@ -1,0 +1,2 @@
+# Optional native-instance track. Ultralytics is AGPL-3.0; see docs/community_references.md.
+ultralytics==8.4.138

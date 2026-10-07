@@ -1,0 +1,46 @@
+schema_version: 2
+run:
+  name: screen_resnet34_512
+  seed: 2026
+  deterministic: true
+data:
+  data_root: MAGFiLO_1.0_Kaggle_2026
+  fold_manifest: data/manifests/train_folds.csv
+  validation_file_list: data/manifests/screen_fold0_32.json
+  mask_cache_dir: data/cache/medoid_semantic_v2
+  fold: 0
+  image_size: 512
+  positive_crop_probability: 0.7
+  num_workers: 2
+model:
+  kind: global
+  architecture: smp_unet
+  encoder_name: resnet34
+  encoder_weights: imagenet
+  input_mean: 0.326732
+  input_std: 0.223022
+training:
+  epochs: 3
+  batch_size: 1
+  gradient_accumulation: 8
+  learning_rate: 0.0003
+  weight_decay: 0.0001
+  warmup_epochs: 1
+  amp: true
+  gradient_clip_norm: 1.0
+  max_steps: 80
+  max_validation_batches: 16
+validation:
+  full_pq_enabled: true
+  full_pq_interval: 1
+  tile_size: 512
+  tile_batch_size: 2
+  overlap: 0.25
+  threshold: 0.3
+  min_area: 200
+  closing_iterations: 1
+  max_instances: 128
+  max_images: 32
+  save_best_oof: false
+artifacts:
+  run_dir: artifacts/screens/resnet34_512

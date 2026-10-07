@@ -1,0 +1,65 @@
+{
+  "created_at_utc": "2026-10-07T03:35:29.339137+00:00",
+  "competition": {
+    "slug": "filament-segmentation-2026",
+    "metric": "official_pq_v6",
+    "metric_source": "https://www.kaggle.com/code/azimahmadzadeh/self-evaluation-notebook",
+    "metric_source_version": 6
+  },
+  "config_fingerprint": "9b9205cdb4a6f2cbd7bfe44aca46a0524674fc9e4fa3afa540796e511baeaf47",
+  "command": [
+    "/home/yu/\u684c\u9762/Solar Filament Segmentation/filament-segmentation-2026/scripts/train.py",
+    "--config",
+    "configs/screen/resnet101_256.yaml"
+  ],
+  "data": {
+    "annotation_file": "MAGFiLO_1.0_Kaggle_2026/train/MAGFiLO_1.0_Annotations_kaggle2026_train.json",
+    "annotation_sha256": "5da9e92b5a1a1947fd5d57adb6688269625c48ec1ef884daf2a01618c9ed54a1",
+    "fold_manifest": "data/manifests/train_folds.csv",
+    "fold_manifest_sha256": "cc3cf309d5dc6ff283259d15771f9122acf27558103695b45b42fb83c9e191ed",
+    "validation_file_list": "data/manifests/screen_fold0_32.json",
+    "validation_file_list_sha256": "8da3f57cedbced8e53b78113f8c6b1ed8de4718736911ec0d861e1eee4f8c055",
+    "cache_manifest": {
+      "schema_version": 3,
+      "target_policy": "medoid_annotator_v1",
+      "target_fields": [
+        "semantic",
+        "instance_boxes"
+      ],
+      "annotation_sha256": "5da9e92b5a1a1947fd5d57adb6688269625c48ec1ef884daf2a01618c9ed54a1",
+      "fold_manifest_sha256": "cc3cf309d5dc6ff283259d15771f9122acf27558103695b45b42fb83c9e191ed",
+      "expected_images": 707
+    },
+    "ground_truth_policy": "competition_train_annotations_only",
+    "train_physical_images": 569,
+    "validation_physical_images": 32
+  },
+  "model": {
+    "parameters": 51506961,
+    "architecture": "smp_unet",
+    "encoder_name": "resnet101",
+    "pretrained_weights": "imagenet"
+  },
+  "runtime": {
+    "python": "3.11.16",
+    "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.35",
+    "device": "cuda",
+    "cuda_available": true,
+    "cuda_runtime": "12.8",
+    "cudnn": 91002,
+    "gpu_name": "NVIDIA GeForce RTX 5070 Laptop GPU",
+    "dependencies": {
+      "numpy": "2.4.6",
+      "scipy": "1.17.1",
+      "scikit-image": "0.26.0",
+      "Pillow": "11.1.0",
+      "opencv-python-headless": "5.0.0.93",
+      "pycocotools": "2.0.11",
+      "tqdm": "4.70.1",
+      "torch": "2.8.0+cu128",
+      "torchvision": "0.23.0+cu128",
+      "segmentation-models-pytorch": "0.5.0",
+      "PyYAML": "6.0.3"
+    }
+  }
+}

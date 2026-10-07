@@ -1,0 +1,10 @@
+{
+  "steps": 5,
+  "batch_size": 2,
+  "initial_loss": 1.3970369100570679,
+  "final_loss": 1.3508572578430176,
+  "final_tail_mean": 1.3667924404144287,
+  "loss_decreased": true,
+  "gpu_peak_mb": 1001.4365234375,
+  "device": "cuda"
+}
