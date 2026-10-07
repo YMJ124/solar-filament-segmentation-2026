@@ -1,0 +1,79 @@
+{
+  "artifact": "detail_efficientnet_b0_fold0",
+  "acceptance_scope": "phase_3_model_b_fold0_training",
+  "status": "passed",
+  "ready_for_phase_4_fusion_validation": true,
+  "phase_4_hard_gate_status": "not_evaluated",
+  "best_selection": {
+    "metric": "official_pq",
+    "epoch": 25,
+    "best_official_pq": 0.12544280671481806,
+    "last_epoch": 40,
+    "best_checkpoint_matches_training_log": true,
+    "best_checkpoint_matches_oof_manifest": true
+  },
+  "independent_reproduction": {
+    "report": "artifacts/validation/detail_efficientnet_b0_fold0.json",
+    "physical_images": 138,
+    "official_pq": 0.12544280671481806,
+    "dice_annotator_macro": 0.42544725952686924,
+    "iou_annotator_macro": 0.28043824157483754,
+    "true_positives": 444,
+    "false_positives": 2322,
+    "false_negatives": 1241,
+    "one_to_many_gt_multiple_partners": 327,
+    "many_to_one_prediction_multiple_partners": 11,
+    "images_at_safety_cap": 0,
+    "evaluation_seconds": 157.99550745799934,
+    "seconds_per_physical_image": 1.1448949815797054,
+    "inference_gpu_peak_mb": 383.05029296875,
+    "exact_metric_match_to_training_oof": true
+  },
+  "oof_integrity": {
+    "expected_images": 138,
+    "actual_images": 138,
+    "missing_images": 0,
+    "extra_images": 0,
+    "shape": [2048, 2048],
+    "dtype": "float16",
+    "nonfinite_values": 0,
+    "fused_probability_equals_detail_probability_max_abs_error": 0.0,
+    "stored_global_probability_matches_model_a_oof_max_abs_error": 0.0,
+    "saved_components": true,
+    "models": ["detail", "global"],
+    "fusion_weights": [0.0, 1.0, 0.0]
+  },
+  "comparison_with_tuned_model_a": {
+    "model_a_official_pq": 0.1346223495141933,
+    "model_b_official_pq": 0.12544280671481806,
+    "model_b_minus_model_a_pq": -0.00917954279937524,
+    "model_a_true_positives": 428,
+    "model_b_true_positives": 444,
+    "model_a_false_positives": 1896,
+    "model_b_false_positives": 2322,
+    "model_a_false_negatives": 1257,
+    "model_b_false_negatives": 1241,
+    "interpretation": "B alone is weaker than tuned A, but recovers 16 additional hits at the cost of 426 additional false positives. Complementarity must be judged by the phase 4 A+B weight search."
+  },
+  "checks": {
+    "training_epochs_complete": true,
+    "full_pq_evaluations": 8,
+    "full_pq_epochs": [5, 10, 15, 20, 25, 30, 35, 40],
+    "pytest": "51 passed, 6 warnings",
+    "pip_check": "No broken requirements found"
+  },
+  "sha256": {
+    "best_checkpoint": "fd52a10029abab578720592254a66938b3efbdaabbf460935be17015593b84f2",
+    "last_checkpoint": "d7f8c854d1b0fa41b54cbdb0cd7b2858938b33b6ea77ae78e6317bdee5e76873",
+    "resolved_config": "a1d01bc4d47201f8bd7baed452339f26ae8f3bf25a91b63cbc08ea6460fb5da6",
+    "run_manifest": "413d0558ed663faafe39a9e0ff96c984addf1c967bde84e8a85843fef9b401ef",
+    "oof_manifest": "ae7e25ef5bcab0958f2eb9d56e8ec87a4fc9bc7b88bed7c129c5636109957b50",
+    "oof_npz_aggregate": "eff3a548685fbc6e829bd136edaa3c0cb657124dd182347e3bb532084ea7a877",
+    "independent_report": "724ed0366d13358a341c3387b199b7fc7ee395c32f01d5f0cbd6479e1388c3"
+  },
+  "notes": [
+    "Phase 3 acceptance covers Model B Fold 0 training correctness and reproducibility.",
+    "The phase 4 hard gate is intentionally not marked passed until the prescribed A+B coarse and fine fusion searches are executed.",
+    "The 180-image under-four-minute phase 4 requirement concerns final A+B test inference and remains to be measured."
+  ]
+}

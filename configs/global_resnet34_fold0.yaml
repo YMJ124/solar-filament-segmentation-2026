@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 
 run:
   name: global_resnet34_fold0
@@ -8,7 +8,7 @@ run:
 data:
   data_root: MAGFiLO_1.0_Kaggle_2026
   fold_manifest: data/manifests/train_folds.csv
-  mask_cache_dir: data/cache/medoid_v1
+  mask_cache_dir: data/cache/medoid_semantic_v2
   fold: 0
   image_size: 256
   positive_crop_probability: 0.7
@@ -16,7 +16,8 @@ data:
 
 model:
   kind: global
-  architecture: resnet34_unet
+  architecture: smp_unet
+  encoder_name: resnet34
   encoder_weights: imagenet
   # Exact pixel statistics from the 569 physical training images outside fold 0.
   input_mean: 0.326732
@@ -33,7 +34,6 @@ training:
   gradient_clip_norm: 1.0
   max_steps: null
   max_validation_batches: null
-  teacher_checkpoint: null
 
 validation:
   full_pq_enabled: true
@@ -41,12 +41,9 @@ validation:
   tile_size: 256
   tile_batch_size: 8
   overlap: 0.25
-  threshold: 0.5
-  min_area: 80
+  threshold: 0.3
+  min_area: 200
   closing_iterations: 1
-  boundary_threshold: 0.5
-  marker_threshold: 0.15
-  marker_min_distance: 8
   # GT max is 26; this safety cap prevents noisy predictions exhausting RAM.
   max_instances: 128
   max_images: null

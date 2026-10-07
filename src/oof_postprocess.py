@@ -306,7 +306,6 @@ def evaluate_oof_configuration(
             threshold=config.threshold,
             min_area=config.min_area,
             closing_iterations=config.closing_iterations,
-            use_watershed=False,
             max_area_fraction=config.max_area_fraction,
             max_instances=config.max_instances,
         )

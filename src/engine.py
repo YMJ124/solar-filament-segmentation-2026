@@ -14,72 +14,21 @@ from typing import Any, Mapping
 
 import numpy as np
 import torch
-import torch.nn.functional as F
-
-from .losses import DetailLoss, GlobalLoss, MultiTaskLoss
+from .losses import GlobalLoss
 
 CHECKPOINT_SCHEMA_VERSION = 2
 
 
 def _loss_for(kind):
-    return {"global": GlobalLoss(), "detail": DetailLoss(), "instance": MultiTaskLoss()}[kind]
+    if kind != "global":
+        raise ValueError(f"single-model core only supports kind='global', got {kind!r}")
+    return GlobalLoss()
 
 
-def augment_teacher_probability(probability: torch.Tensor,
-                                config: Mapping[str, Any] | None = None) -> torch.Tensor:
-    """Apply lightweight Model-A error simulation for Model-B training only."""
-    config = config or {}
-    dropout = float(config.get("dropout", 0.0))
-    blur_probability = float(config.get("blur_probability", 0.0))
-    blur_kernel = int(config.get("blur_kernel", 3))
-    if not 0 <= dropout < 1:
-        raise ValueError("teacher probability dropout must be in [0, 1)")
-    if not 0 <= blur_probability <= 1:
-        raise ValueError("teacher blur_probability must be in [0, 1]")
-    if blur_kernel < 1 or blur_kernel % 2 == 0:
-        raise ValueError("teacher blur_kernel must be a positive odd integer")
-    if dropout:
-        keep = torch.rand_like(probability) >= dropout
-        probability = probability * keep
-    if blur_probability and blur_kernel > 1:
-        apply_blur = torch.rand(
-            probability.shape[0], 1, 1, 1, device=probability.device
-        ) < blur_probability
-        blurred = F.avg_pool2d(
-            probability, blur_kernel, stride=1, padding=blur_kernel // 2
-        )
-        probability = torch.where(apply_blur, blurred, probability)
-    return probability
-
-
-def _detail_input(image: torch.Tensor, teacher_model,
-                  augmentation: Mapping[str, Any] | None = None) -> torch.Tensor:
-    if teacher_model is None:
-        raise ValueError("detail training and validation require a Model-A teacher")
-    with torch.no_grad():
-        probability = torch.sigmoid(teacher_model(image))
-        if augmentation:
-            probability = augment_teacher_probability(probability, augmentation)
-    return torch.cat([image, probability], dim=1)
-
-
-def _batch_loss(model, batch, device, kind, criterion, teacher_model=None,
-                teacher_augmentation: Mapping[str, Any] | None = None):
-    """Run the kind-specific forward/loss path shared by train and validation."""
+def _batch_loss(model, batch, device, criterion):
     image = batch["image"].to(device, non_blocking=True)
     semantic = batch["semantic_mask"].to(device, non_blocking=True)
-    if kind == "instance":
-        return criterion(
-            model(image),
-            semantic,
-            batch["boundary_mask"].to(device, non_blocking=True),
-            batch["distance_map"].to(device, non_blocking=True),
-        )
-    model_input = (
-        _detail_input(image, teacher_model, teacher_augmentation)
-        if kind == "detail" else image
-    )
-    return criterion(model(model_input), semantic)
+    return criterion(model(image), semantic)
 
 
 def _optimizer_step(model, optimizer, scaler, use_amp: bool, gradient_clip_norm: float) -> None:
@@ -95,9 +44,9 @@ def _optimizer_step(model, optimizer, scaler, use_amp: bool, gradient_clip_norm:
     optimizer.zero_grad(set_to_none=True)
 
 
-def train_one_epoch(model, loader, optimizer, device, kind, scaler=None,
-                    teacher_model=None, max_steps=None, gradient_accumulation=1,
-                    gradient_clip_norm=1.0, teacher_augmentation=None):
+def train_one_epoch(model, loader, optimizer, device, kind="global", scaler=None,
+                    max_steps=None, gradient_accumulation=1,
+                    gradient_clip_norm=1.0):
     """Train one epoch with bounded AMP and true gradient accumulation."""
     from tqdm import tqdm
 
@@ -123,10 +72,7 @@ def train_one_epoch(model, loader, optimizer, device, kind, scaler=None,
         group_start = (processed // gradient_accumulation) * gradient_accumulation
         group_size = min(gradient_accumulation, planned_batches - group_start)
         with torch.autocast(device_type=device.type, enabled=use_amp):
-            loss = _batch_loss(
-                model, batch, device, kind, criterion, teacher_model,
-                teacher_augmentation,
-            )
+            loss = _batch_loss(model, batch, device, criterion)
             scaled_loss = loss / group_size
         if use_amp:
             scaler.scale(scaled_loss).backward()
@@ -157,7 +103,7 @@ def train_one_epoch(model, loader, optimizer, device, kind, scaler=None,
 
 
 @torch.no_grad()
-def validate_loss(model, loader, device, kind, teacher_model=None, max_batches=None):
+def validate_loss(model, loader, device, kind="global", max_batches=None):
     model.eval()
     criterion = _loss_for(kind)
     total = 0.0
@@ -165,7 +111,7 @@ def validate_loss(model, loader, device, kind, teacher_model=None, max_batches=N
     for step, batch in enumerate(loader):
         if max_batches is not None and step >= max_batches:
             break
-        loss = _batch_loss(model, batch, device, kind, criterion, teacher_model)
+        loss = _batch_loss(model, batch, device, criterion)
         total += float(loss)
         processed += 1
     return {"loss": total / max(1, processed), "batches": processed}

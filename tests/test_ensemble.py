@@ -3,11 +3,10 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from src.models import GlobalUNet, InstanceSeparationNet
-from src.models.ensemble import predict_sliding_window, sliding_starts
+from src.models import GlobalUNet
+from src.inference import predict_sliding_window, sliding_starts
 from src.metrics.segmentation import segmentation_metrics
 from src.postprocess.instances import (
-    fuse_probabilities,
     probability_to_instance_labels,
     probability_to_instances,
 )
@@ -19,19 +18,16 @@ from src.submission.validate import (
 from src.submission.rle import encode_mask, label_map_to_rles
 
 
-def test_model_shapes_and_fusion():
+def test_model_shape():
     image = torch.randn(1, 1, 64, 64)
     assert GlobalUNet(base=4)(image).shape == (1, 1, 64, 64)
-    output = InstanceSeparationNet(base=4)(image)
-    assert set(output) == {"semantic", "boundary", "distance"}
-    assert np.allclose(fuse_probabilities([np.zeros((2, 2)), np.ones((2, 2))], [0.25, 0.75]), 0.75)
 
 
 def test_connected_component_postprocess():
     probability = np.zeros((32, 32), dtype=np.float32)
     probability[2:8, 2:8] = 1
     probability[20:28, 20:28] = 1
-    masks = probability_to_instances(probability, threshold=0.5, min_area=5, use_watershed=False)
+    masks = probability_to_instances(probability, threshold=0.5, min_area=5)
     assert len(masks) == 2
 
 
@@ -44,7 +40,6 @@ def test_label_postprocess_keeps_largest_instances_under_safety_cap():
         probability,
         threshold=0.5,
         min_area=1,
-        use_watershed=False,
         max_instances=2,
     )
     assert labels.max() == 2
@@ -67,18 +62,18 @@ def test_tile_batching_does_not_change_sliding_prediction():
     image = np.random.default_rng(7).random((32, 32), dtype=np.float32)
     model = ConstantModel().eval()
     first = predict_sliding_window(
-        {"global": model}, image, torch.device("cpu"), tile_size=16,
-        overlap=0.25, weights=(1.0, 0.0, 0.0), tile_batch_size=1,
-    )[0]
+        model, image, torch.device("cpu"), tile_size=16,
+        overlap=0.25, tile_batch_size=1,
+    )
     batched = predict_sliding_window(
-        {"global": model}, image, torch.device("cpu"), tile_size=16,
-        overlap=0.25, weights=(1.0, 0.0, 0.0), tile_batch_size=4,
-    )[0]
+        model, image, torch.device("cpu"), tile_size=16,
+        overlap=0.25, tile_batch_size=4,
+    )
     np.testing.assert_allclose(first, batched, rtol=0, atol=0)
 
     with pytest.raises(ValueError, match="no larger than the image"):
         predict_sliding_window(
-            {"global": model}, image, torch.device("cpu"), tile_size=64
+            model, image, torch.device("cpu"), tile_size=64
         )
 
 

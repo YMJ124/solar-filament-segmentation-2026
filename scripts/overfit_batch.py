@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fast Model-A sanity check: repeatedly optimize one fixed cached batch."""
+"""Fast sanity gate: repeatedly optimize one fixed cached batch."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="configs/global_resnet34_fold0.yaml")
     parser.add_argument("--steps", type=int, default=20)
-    parser.add_argument("--batch-size", type=int, default=4)
+    parser.add_argument("--batch-size", type=int)
     parser.add_argument("--lr", type=float, default=3e-4)
     parser.add_argument("--output")
     parser.add_argument(
@@ -34,8 +34,8 @@ def main() -> None:
     args = parser.parse_args()
     config = load_training_config(args.config)
     if config["model"]["kind"] != "global":
-        parser.error("overfit_batch currently supports Model A/global only")
-    if args.steps < 2 or args.batch_size < 1:
+        parser.error("overfit_batch supports the single semantic model only")
+    if args.steps < 2 or (args.batch_size is not None and args.batch_size < 1):
         parser.error("steps must be >= 2 and batch-size must be >= 1")
 
     seed = int(config["run"]["seed"])
@@ -44,6 +44,7 @@ def main() -> None:
     torch.manual_seed(seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     data_cfg = config["data"]
+    batch_size = args.batch_size or int(config["training"]["batch_size"])
     root = Path(data_cfg["data_root"])
     annotation_file = root / "train/MAGFiLO_1.0_Annotations_kaggle2026_train.json"
     records = load_fold_manifest(data_cfg["fold_manifest"], annotation_file)
@@ -60,7 +61,7 @@ def main() -> None:
     )
     dataset.set_epoch(0)
     batch = collate_filaments([
-        dataset[index] for index in range(min(args.batch_size, len(dataset)))
+        dataset[index] for index in range(min(batch_size, len(dataset)))
     ])
     image = batch["image"].to(device)
     target = batch["semantic_mask"].to(device)

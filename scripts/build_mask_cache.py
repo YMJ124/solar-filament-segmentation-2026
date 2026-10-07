@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Precompute versioned medoid semantic/boundary/distance targets."""
+"""Precompute versioned medoid semantic targets and instance boxes."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ import numpy as np
 
 from src.data.cache import CACHE_MANIFEST_NAME, expected_cache_metadata
 from src.data.coco import CocoAnnotations
-from src.data.dataset import _instance_boxes, _targets
+from src.data.dataset import _instance_boxes, _semantic_target
 from src.data.folds import load_fold_manifest
 from src.data.masks import annotations_to_masks
 from src.io_utils import atomic_write_json
@@ -39,7 +39,7 @@ def _prepare_manifest(output, annotation_file, fold_manifest, expected_images):
     return expected
 
 
-def _write_cache_entry(path, selected_image_id, semantic, boundary, distance, boxes):
+def _write_cache_entry(path, selected_image_id, semantic, boxes):
     with tempfile.NamedTemporaryFile(
         dir=path.parent, prefix=f".{path.stem}-", suffix=".npz", delete=False
     ) as handle:
@@ -48,8 +48,6 @@ def _write_cache_entry(path, selected_image_id, semantic, boundary, distance, bo
             handle,
             selected_image_id=np.asarray(selected_image_id),
             semantic=semantic.astype(np.uint8),
-            boundary=boundary.astype(np.uint8),
-            distance=distance.astype(np.float16),
             instance_boxes=boxes.astype(np.int32),
         )
     temporary.replace(path)
@@ -59,7 +57,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-root", default="MAGFiLO_1.0_Kaggle_2026")
     parser.add_argument("--fold-manifest", default="data/manifests/train_folds.csv")
-    parser.add_argument("--output", default="data/cache/medoid_v1")
+    parser.add_argument("--output", default="data/cache/medoid_semantic_v2")
     parser.add_argument("--max-images", type=int)
     args = parser.parse_args()
 
@@ -89,15 +87,13 @@ def main() -> None:
                 int(record["height"]),
                 int(record["width"]),
             )
-            semantic, boundary, distance = _targets(
+            semantic = _semantic_target(
                 instances, (int(record["height"]), int(record["width"]))
             )
             _write_cache_entry(
                 path,
                 selected_image_id,
                 semantic,
-                boundary,
-                distance,
                 _instance_boxes(instances),
             )
         if index % 25 == 0 or index == len(selected_records):

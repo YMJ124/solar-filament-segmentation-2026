@@ -18,16 +18,13 @@ from src.data.coco import CocoAnnotations
 from src.data.masks import annotations_to_rles
 from src.metrics.pq import aggregate_counts, pairwise_rle_iou, score_iou_matrix
 from src.metrics.segmentation import segmentation_metrics
-from src.models.ensemble import predict_sliding_window
+from src.inference import predict_sliding_window
 from src.postprocess.instances import probability_to_instance_labels
 from src.submission.rle import label_map_to_rles
 from src.io_utils import atomic_write_json
 
 
-def _atomic_save_probability(path: Path, probability: np.ndarray, file_name: str,
-                             components: Mapping[str, np.ndarray] | None = None,
-                             boundary: np.ndarray | None = None,
-                             distance: np.ndarray | None = None) -> None:
+def _atomic_save_probability(path: Path, probability: np.ndarray, file_name: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary = tempfile.mkstemp(
         prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
@@ -38,12 +35,6 @@ def _atomic_save_probability(path: Path, probability: np.ndarray, file_name: str
                 "probability": np.asarray(probability, dtype=np.float16),
                 "file_name": np.asarray(file_name),
             }
-            for key, value in (components or {}).items():
-                payload[key] = np.asarray(value, dtype=np.float16)
-            if boundary is not None:
-                payload["boundary"] = np.asarray(boundary, dtype=np.float16)
-            if distance is not None:
-                payload["distance"] = np.asarray(distance, dtype=np.float16)
             np.savez_compressed(handle, **payload)
             handle.flush()
             os.fsync(handle.fileno())
@@ -89,7 +80,7 @@ def _degree_distribution(degrees: list[int]) -> dict[str, Any]:
 
 @torch.inference_mode()
 def evaluate_full_images(
-    models: Mapping[str, Any],
+    model,
     records: Iterable[Mapping[str, Any]],
     coco: CocoAnnotations,
     image_dir: str | Path,
@@ -97,15 +88,8 @@ def evaluate_full_images(
     validation_config: Mapping[str, Any],
     oof_dir: str | Path | None = None,
     progress: bool = True,
-    weights: tuple[float, float, float] = (1.0, 0.0, 0.0),
-    save_components: bool = False,
 ) -> dict[str, Any]:
-    """Evaluate available models once per image and score every annotator batch."""
-    models = dict(models)
-    if not models:
-        raise ValueError("full-image validation requires at least one model")
-    if "detail" in models and "global" not in models:
-        raise ValueError("detail full-image validation requires global Model A")
+    """Evaluate one model once per image and score every annotator batch."""
     selected = list(records)
     max_images = validation_config.get("max_images")
     if max_images is not None:
@@ -117,9 +101,8 @@ def evaluate_full_images(
     output_dir = Path(oof_dir) if oof_dir is not None else None
     if output_dir is not None:
         output_dir.mkdir(parents=True, exist_ok=True)
-    training_states = {key: model.training for key, model in models.items()}
-    for model in models.values():
-        model.eval()
+    training_state = model.training
+    model.eval()
     started = perf_counter()
     if device.type == "cuda":
         torch.cuda.reset_peak_memory_stats(device)
@@ -141,39 +124,22 @@ def evaluate_full_images(
             with Image.open(image_dir / file_name) as image:
                 image_array = np.asarray(image.convert("L"), dtype=np.float32) / 255.0
             prediction = predict_sliding_window(
-                models, image_array, device,
+                model, image_array, device,
                 tile_size=int(validation_config["tile_size"]),
                 overlap=float(validation_config.get("overlap", 0.25)),
-                weights=weights,
                 tile_batch_size=int(validation_config.get("tile_batch_size", 8)),
-                return_components=save_components,
             )
-            if save_components:
-                probability, boundary, distance, components = prediction
-            else:
-                probability, boundary, distance = prediction
-                components = None
             if output_dir is not None:
                 probability_path = output_dir / f"{Path(file_name).stem}.npz"
-                _atomic_save_probability(
-                    probability_path, probability, file_name, components,
-                    boundary if save_components else None,
-                    distance if save_components else None,
-                )
+                _atomic_save_probability(probability_path, prediction, file_name)
                 saved_files.append(probability_path.name)
             predicted_labels = probability_to_instance_labels(
-                probability,
+                prediction,
                 threshold=float(validation_config.get("threshold", 0.5)),
                 min_area=int(validation_config.get("min_area", 80)),
                 closing_iterations=int(
                     validation_config.get("closing_iterations", 1)
                 ),
-                boundary=boundary,
-                distance=distance,
-                boundary_threshold=float(validation_config.get("boundary_threshold", 0.5)),
-                use_watershed=distance is not None,
-                marker_threshold=float(validation_config.get("marker_threshold", 0.15)),
-                marker_min_distance=int(validation_config.get("marker_min_distance", 8)),
                 max_instances=int(validation_config.get("max_instances", 128)),
             )
             prediction_rles = label_map_to_rles(predicted_labels)
@@ -215,8 +181,7 @@ def evaluate_full_images(
             if progress:
                 print(f"full-image validation {index}/{len(selected)}: {file_name}")
     finally:
-        for key, model in models.items():
-            model.train(training_states[key])
+        model.train(training_state)
 
     report = aggregate_counts(pq_counts, physical_images=len(selected)).to_dict()
     elapsed = perf_counter() - started
@@ -248,15 +213,10 @@ def evaluate_full_images(
                 "threshold": 0.5,
                 "min_area": 80,
                 "closing_iterations": 1,
-                "boundary_threshold": 0.5,
-                "marker_threshold": 0.15,
-                "marker_min_distance": 8,
                 "max_instances": 128,
             }.items()
         },
-        "models": sorted(models),
-        "fusion_weights": [float(value) for value in weights],
-        "saved_components": bool(save_components),
+        "model_mode": "single",
         "evaluated_file_names": [str(row["file_name"]) for row in selected],
         "oof_probability_dtype": "float16" if output_dir is not None else None,
         "oof_probability_files": saved_files,
@@ -283,9 +243,8 @@ def evaluate_global_full_images(
     oof_dir: str | Path | None = None,
     progress: bool = True,
 ) -> dict[str, Any]:
-    """Backward-compatible Model-A-only full-image validation wrapper."""
+    """Backward-compatible alias for single-model full-image validation."""
     return evaluate_full_images(
-        {"global": model}, records, coco, image_dir, device, validation_config,
-        oof_dir=oof_dir, progress=progress, weights=(1.0, 0.0, 0.0),
-        save_components=False,
+        model, records, coco, image_dir, device, validation_config,
+        oof_dir=oof_dir, progress=progress,
     )

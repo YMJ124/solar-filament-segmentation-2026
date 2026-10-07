@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Configuration-driven training for one ensemble member."""
+"""Configuration-driven training for the single-model core."""
 
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ from src.engine import (
 )
 from src.full_image_validation import evaluate_full_images
 from src.io_utils import atomic_write_json
-from src.models import build_model, load_model_from_checkpoint
+from src.models import build_model
 from src.models.factory import normalize_model_config
 from src.metrics.pq import OFFICIAL_METRIC_NAME, OFFICIAL_METRIC_SOURCE
 from src.training_config import atomic_write_yaml, load_training_config
@@ -93,8 +93,6 @@ def _run_manifest(config, annotation_file: Path, fold_manifest: Path,
                   cache_dir: str | Path | None, device, parameter_count: int,
                   train_images: int, valid_images: int) -> dict:
     cache_manifest = Path(cache_dir) / "manifest.json" if cache_dir else None
-    teacher_checkpoint = config["training"].get("teacher_checkpoint")
-    teacher_path = Path(teacher_checkpoint) if teacher_checkpoint else None
     return {
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "competition": {
@@ -110,6 +108,11 @@ def _run_manifest(config, annotation_file: Path, fold_manifest: Path,
             "annotation_sha256": sha256_file(annotation_file),
             "fold_manifest": str(fold_manifest),
             "fold_manifest_sha256": sha256_file(fold_manifest),
+            "validation_file_list": config["data"].get("validation_file_list"),
+            "validation_file_list_sha256": (
+                sha256_file(config["data"]["validation_file_list"])
+                if config["data"].get("validation_file_list") else None
+            ),
             "cache_manifest": (
                 json.loads(cache_manifest.read_text())
                 if cache_manifest and cache_manifest.exists() else None
@@ -120,12 +123,9 @@ def _run_manifest(config, annotation_file: Path, fold_manifest: Path,
         },
         "model": {
             "parameters": parameter_count,
+            "architecture": config["model"]["architecture"],
+            "encoder_name": config["model"].get("encoder_name"),
             "pretrained_weights": config["model"].get("encoder_weights"),
-            "teacher_checkpoint": str(teacher_path) if teacher_path else None,
-            "teacher_checkpoint_sha256": (
-                sha256_file(teacher_path)
-                if teacher_path and teacher_path.is_file() else None
-            ),
         },
         "runtime": {
             "python": platform.python_version(),
@@ -170,6 +170,7 @@ def _cli_overrides(args) -> dict:
     put("data", "data_root", args.data_root)
     put("data", "fold_manifest", args.fold_manifest)
     put("data", "mask_cache_dir", args.mask_cache_dir)
+    put("data", "validation_file_list", args.validation_file_list)
     put("data", "fold", args.fold)
     put("data", "image_size", args.image_size)
     put("data", "num_workers", args.num_workers)
@@ -182,7 +183,6 @@ def _cli_overrides(args) -> dict:
     put("training", "learning_rate", args.lr)
     put("training", "max_steps", args.max_steps)
     put("training", "max_validation_batches", args.max_validation_batches)
-    put("training", "teacher_checkpoint", args.teacher_checkpoint)
     put("validation", "max_images", args.full_pq_max_images)
     if args.skip_full_pq:
         put("validation", "full_pq_enabled", False)
@@ -197,13 +197,13 @@ def _parse_args():
     parser.add_argument("--data-root")
     parser.add_argument("--fold-manifest")
     parser.add_argument("--mask-cache-dir")
+    parser.add_argument("--validation-file-list")
     parser.add_argument("--fold", type=int)
     parser.add_argument("--epochs", type=int)
     parser.add_argument("--batch-size", type=int)
     parser.add_argument("--image-size", type=int)
     parser.add_argument("--lr", type=float)
     parser.add_argument("--num-workers", type=int)
-    parser.add_argument("--teacher-checkpoint")
     parser.add_argument("--encoder-weights", choices=["imagenet", "none"])
     parser.add_argument("--max-steps", type=int)
     parser.add_argument("--max-validation-batches", type=int)
@@ -244,6 +244,18 @@ def main() -> None:
     fold = int(data_cfg["fold"])
     train_records = [row for row in records if int(row["fold"]) != fold]
     valid_records = [row for row in records if int(row["fold"]) == fold]
+    validation_file_list = data_cfg.get("validation_file_list")
+    if validation_file_list:
+        selected_names = set(json.loads(Path(validation_file_list).read_text()))
+        unknown = selected_names - {str(row["file_name"]) for row in valid_records}
+        if unknown:
+            raise ValueError(
+                "validation_file_list contains files outside the selected fold: "
+                f"{sorted(unknown)[:5]}"
+            )
+        valid_records = [
+            row for row in valid_records if str(row["file_name"]) in selected_names
+        ]
     if not train_records or not valid_records:
         raise ValueError(f"fold {fold} is absent or leaves an empty training split")
 
@@ -269,14 +281,6 @@ def main() -> None:
     kind = str(model_cfg["kind"])
     normalized_model_cfg = normalize_model_config(kind, model_cfg)
     model = build_model(kind, normalized_model_cfg, initialize_pretrained=not bool(args.resume)).to(device)
-    teacher = None
-    if kind == "detail":
-        teacher = load_model_from_checkpoint(
-            train_cfg["teacher_checkpoint"], device, expected_kind="global"
-        )
-        teacher.eval()
-        teacher.requires_grad_(False)
-
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=float(train_cfg["learning_rate"]),
@@ -294,10 +298,9 @@ def main() -> None:
     start_epoch = 1
     global_step = 0
     best_metric = None
-    full_pq_kind = kind in {"global", "detail"}
     best_metric_name = (
         "official_pq"
-        if valid_cfg["full_pq_enabled"] and full_pq_kind
+        if valid_cfg["full_pq_enabled"]
         else "negative_valid_loss"
     )
     if args.resume:
@@ -353,14 +356,9 @@ def main() -> None:
             device=device,
             kind=kind,
             scaler=scaler,
-            teacher_model=teacher,
             max_steps=train_cfg.get("max_steps"),
             gradient_accumulation=int(train_cfg["gradient_accumulation"]),
             gradient_clip_norm=float(train_cfg["gradient_clip_norm"]),
-            teacher_augmentation=(
-                train_cfg.get("teacher_probability_augmentation")
-                if kind == "detail" else None
-            ),
         )
         global_step += int(train_stats["optimizer_steps"])
         valid_stats = validate_loss(
@@ -368,7 +366,6 @@ def main() -> None:
             valid_loader,
             device,
             kind,
-            teacher,
             train_cfg.get("max_validation_batches"),
         )
         lr_used = float(optimizer.param_groups[0]["lr"])
@@ -388,30 +385,19 @@ def main() -> None:
         candidate_oof = run_dir / "oof_candidate"
         full_pq_due = (
             bool(valid_cfg["full_pq_enabled"])
-            and full_pq_kind
             and (epoch % int(valid_cfg["full_pq_interval"]) == 0 or epoch == epochs)
         )
         if full_pq_due:
             _remove_generated_directory(candidate_oof, run_dir)
             oof_path = candidate_oof if valid_cfg.get("save_best_oof", True) else None
-            evaluation_models = (
-                {"global": model}
-                if kind == "global"
-                else {"global": teacher, "detail": model}
-            )
-            evaluation_weights = (
-                (1.0, 0.0, 0.0) if kind == "global" else (0.0, 1.0, 0.0)
-            )
             full_report = evaluate_full_images(
-                evaluation_models,
+                model,
                 valid_records,
                 coco,
                 data_root / "train/train_images",
                 device,
                 valid_cfg,
                 oof_dir=oof_path,
-                weights=evaluation_weights,
-                save_components=bool(valid_cfg.get("save_components", False)),
             )
             full_report.update({"epoch": epoch, "fold": fold})
             atomic_write_json(

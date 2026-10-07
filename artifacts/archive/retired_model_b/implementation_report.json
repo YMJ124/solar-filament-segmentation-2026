@@ -1,0 +1,59 @@
+{
+  "stage": 3,
+  "status": "ready_for_user_training",
+  "formal_training_performed": false,
+  "reason_formal_training_not_performed": "Explicit user request: implement Model B but leave the full run to the user.",
+  "model": {
+    "kind": "detail",
+    "architecture": "efficientnet_b0_unet",
+    "encoder": "efficientnet-b0",
+    "input_channels": 2,
+    "parameters": 6251181,
+    "teacher": "frozen Model A Fold 0",
+    "selection_metric": "official_pq_v6",
+    "selection_weights": [0.0, 1.0, 0.0]
+  },
+  "configuration": "configs/detail_efficientnet_b0_fold0.yaml",
+  "smoke_training": {
+    "encoder_weights": null,
+    "epochs": 1,
+    "train_batches": 1,
+    "validation_batches": 1,
+    "optimizer_steps": 1,
+    "train_loss": 1.2220251560211182,
+    "validation_loss": 1.012303113937378,
+    "device": "cpu",
+    "train_seconds": 1.2155765390000397,
+    "rss_peak_mb": 1903.42578125,
+    "artifact_location": null,
+    "artifact_status": "removed_at_user_request"
+  },
+  "full_image_smoke": {
+    "images": 1,
+    "annotator_records": 2,
+    "seconds": 10.030511743000034,
+    "device": "cpu",
+    "note": "The checkpoint is intentionally untrained; its PQ is not a model-quality result. This run verifies the complete A-to-B full-image evaluation path."
+  },
+  "oof_schema": [
+    "probability",
+    "global_probability",
+    "detail_probability",
+    "file_name"
+  ],
+  "core_cleanup": [
+    "Shared pretrained U-Net construction helper",
+    "Shared train/validation batch-loss path",
+    "Generic multi-model full-image evaluator with Model-A compatibility wrapper",
+    "Single extraction pass for fused and component probability maps",
+    "Fixed explicit no-pretraining CLI override",
+    "Fixed keyword-only instance post-processing call in ensemble submission"
+  ],
+  "training_cleanup": {
+    "formal_training_status": "interrupted_at_user_request",
+    "formal_run_directory_removed": true,
+    "smoke_run_directory_removed": true,
+    "source_and_training_config_preserved": true,
+    "imagenet_weight_cache_preserved_for_user_training": true
+  }
+}

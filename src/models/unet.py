@@ -1,7 +1,7 @@
-"""U-Net models used by the segmentation pipeline.
+"""Single-model U-Net implementations.
 
-The compact models are retained for CPU tests and legacy checkpoints. Formal
-training uses ImageNet-pretrained encoders for Model A and Model B.
+The compact network exists for CPU tests and smoke checks. Formal experiments
+use one configurable segmentation-models-pytorch U-Net.
 """
 
 from __future__ import annotations
@@ -74,26 +74,16 @@ class GlobalUNet(_UNet):
         super().__init__(1, 1, base)
 
 
-class DetailUNet(_UNet):
-    def __init__(self, base=24):
-        super().__init__(2, 1, base)
+class SMPUNet(nn.Module):
+    """Configurable single-channel U-Net with in-model normalization."""
 
-
-class ResNet34UNet(nn.Module):
-    """Single-channel U-Net with a ResNet34 encoder.
-
-    Input normalization is part of the model, rather than the Dataset, so tiled
-    training, validation and submission inference cannot silently diverge.
-    ``encoder_weights=None`` is useful for offline tests; formal training should
-    use ``"imagenet"``.
-    """
-
-    def __init__(self, encoder_weights: str | None = "imagenet",
+    def __init__(self, encoder_name: str = "resnet34",
+                 encoder_weights: str | None = "imagenet",
                  input_mean: float = 0.326732, input_std: float = 0.223022):
         super().__init__()
         if input_std <= 0:
             raise ValueError("input_std must be positive")
-        self.network = _build_smp_unet("resnet34", encoder_weights, 1)
+        self.network = _build_smp_unet(encoder_name, encoder_weights, 1)
         self.register_buffer(
             "input_mean", torch.tensor(float(input_mean), dtype=torch.float32)
         )
@@ -103,35 +93,3 @@ class ResNet34UNet(nn.Module):
 
     def forward(self, x):
         return self.network((x - self.input_mean) / self.input_std)
-
-
-class EfficientNetB0DetailUNet(nn.Module):
-    """Two-channel Model B that refines a frozen Model-A probability map.
-
-    The first channel is the raw grayscale image in ``[0, 1]`` and uses the
-    Fold-specific Model-A normalization. The second channel is the sigmoid
-    probability from Model A and is mapped from ``[0, 1]`` to ``[-1, 1]``.
-    Keeping both transforms inside the model prevents training, full-image
-    validation, and submission inference from silently using different input
-    conventions.
-    """
-
-    def __init__(self, encoder_weights: str | None = "imagenet",
-                 input_mean: float = 0.326732, input_std: float = 0.223022):
-        super().__init__()
-        if input_std <= 0:
-            raise ValueError("input_std must be positive")
-        self.network = _build_smp_unet("efficientnet-b0", encoder_weights, 2)
-        self.register_buffer(
-            "input_mean", torch.tensor(float(input_mean), dtype=torch.float32)
-        )
-        self.register_buffer(
-            "input_std", torch.tensor(float(input_std), dtype=torch.float32)
-        )
-
-    def forward(self, x):
-        if x.ndim != 4 or x.shape[1] != 2:
-            raise ValueError("Model B expects BCHW input with two channels")
-        image = (x[:, :1] - self.input_mean) / self.input_std
-        global_probability = x[:, 1:2] * 2.0 - 1.0
-        return self.network(torch.cat([image, global_probability], dim=1))

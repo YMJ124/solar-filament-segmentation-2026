@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .folds import TARGET_POLICY
 
-CACHE_SCHEMA_VERSION = 2
+CACHE_SCHEMA_VERSION = 3
 CACHE_MANIFEST_NAME = "manifest.json"
 
 
@@ -30,6 +30,7 @@ def expected_cache_metadata(
     return {
         "schema_version": CACHE_SCHEMA_VERSION,
         "target_policy": TARGET_POLICY,
+        "target_fields": ["semantic", "instance_boxes"],
         "annotation_sha256": sha256_file(annotation_file),
         "fold_manifest_sha256": sha256_file(fold_manifest),
         "expected_images": int(expected_images),
@@ -49,6 +50,7 @@ def validate_cache_manifest(
     expected = {
         "schema_version": CACHE_SCHEMA_VERSION,
         "target_policy": TARGET_POLICY,
+        "target_fields": ["semantic", "instance_boxes"],
         "annotation_sha256": sha256_file(annotation_file),
         "fold_manifest_sha256": sha256_file(fold_manifest),
     }

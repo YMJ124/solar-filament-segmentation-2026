@@ -55,7 +55,7 @@ uses only the provided H-alpha test images.
   prediction independently against every annotator batch, matching notebook v6.
 - Validation reports the official positive-pair IoU/Dice histograms and the
   IoU>0 one-to-many/many-to-one degree distributions, in addition to PQ.
-- Thresholds, minimum area and future ensemble weights must be selected from OOF
+- Thresholds, minimum area and any future ensemble weights must be selected from OOF
   validation predictions only, never from test results.
 
 ## Reproducibility status
@@ -74,7 +74,7 @@ Implemented:
 Still required before final competition handoff, but not before the local stress
 test:
 
-- initialize and publish the required Git repository at competition close;
+- publish the initialized Git repository at competition close;
 - create the required end-to-end Jupyter notebook;
 - prepare the four-page technical report and final Google-form submission;
 - submit a model-produced CSV to Kaggle and archive its score receipt.

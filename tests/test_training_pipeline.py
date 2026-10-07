@@ -4,7 +4,7 @@ import random
 
 torch = pytest.importorskip("torch")
 
-from src.data.dataset import _crop, _targets
+from src.data.dataset import _crop, _semantic_target
 from src.engine import restore_checkpoint, save_checkpoint, train_one_epoch
 from src.full_image_validation import _degree_distribution, _positive_score_distribution
 from src.models import GlobalUNet, build_model
@@ -61,27 +61,13 @@ def test_validation_crop_uses_an_instance_instead_of_global_centroid():
     assert cropped[1].sum() > 0
 
 
-def test_bbox_target_construction_matches_full_image_reference():
-    scipy = pytest.importorskip("scipy")
-    from scipy import ndimage
-
+def test_semantic_target_is_union_of_instances():
     first = np.zeros((32, 32), dtype=bool)
     second = np.zeros((32, 32), dtype=bool)
     first[0:7, 2:9] = True
     second[18:30, 20:31] = True
-    semantic, boundary, distance = _targets([first, second])
-    expected_boundary = np.zeros((32, 32), dtype=bool)
-    expected_distance = np.zeros((32, 32), dtype=np.float32)
-    for instance in (first, second):
-        eroded = ndimage.binary_erosion(instance, iterations=1, border_value=0)
-        expected_boundary |= instance & ~eroded
-        local_distance = ndimage.distance_transform_edt(instance)
-        expected_distance = np.maximum(
-            expected_distance, local_distance / local_distance.max()
-        )
+    semantic = _semantic_target([first, second])
     np.testing.assert_array_equal(semantic.astype(bool), first | second)
-    np.testing.assert_array_equal(boundary.astype(bool), expected_boundary)
-    np.testing.assert_allclose(distance, expected_distance)
 
 
 def test_max_steps_uses_processed_batch_count():

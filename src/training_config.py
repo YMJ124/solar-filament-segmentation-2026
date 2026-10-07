@@ -22,12 +22,13 @@ def _merge(target: dict, updates: Mapping[str, Any]) -> dict:
 
 def default_training_config() -> dict[str, Any]:
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "run": {"name": "global_resnet34_fold0", "seed": 2026, "deterministic": True},
         "data": {
             "data_root": "MAGFiLO_1.0_Kaggle_2026",
             "fold_manifest": "data/manifests/train_folds.csv",
-            "mask_cache_dir": "data/cache/medoid_v1",
+            "validation_file_list": None,
+            "mask_cache_dir": "data/cache/medoid_semantic_v2",
             "fold": 0,
             "image_size": 256,
             "positive_crop_probability": 0.7,
@@ -35,7 +36,8 @@ def default_training_config() -> dict[str, Any]:
         },
         "model": {
             "kind": "global",
-            "architecture": "resnet34_unet",
+            "architecture": "smp_unet",
+            "encoder_name": "resnet34",
             "encoder_weights": "imagenet",
             "input_mean": 0.326732,
             "input_std": 0.223022,
@@ -51,12 +53,6 @@ def default_training_config() -> dict[str, Any]:
             "gradient_clip_norm": 1.0,
             "max_steps": None,
             "max_validation_batches": None,
-            "teacher_checkpoint": None,
-            "teacher_probability_augmentation": {
-                "dropout": 0.0,
-                "blur_probability": 0.0,
-                "blur_kernel": 3,
-            },
         },
         "validation": {
             "full_pq_enabled": True,
@@ -67,13 +63,9 @@ def default_training_config() -> dict[str, Any]:
             "threshold": 0.5,
             "min_area": 80,
             "closing_iterations": 1,
-            "boundary_threshold": 0.5,
-            "marker_threshold": 0.15,
-            "marker_min_distance": 8,
             "max_instances": 128,
             "max_images": None,
             "save_best_oof": True,
-            "save_components": False,
         },
         "artifacts": {"run_dir": "artifacts/runs/global_resnet34_fold0"},
     }
@@ -81,8 +73,14 @@ def default_training_config() -> dict[str, Any]:
 
 def validate_training_config(config: Mapping[str, Any]) -> None:
     kind = config["model"]["kind"]
-    if kind not in {"global", "detail", "instance"}:
+    if kind != "global":
         raise ValueError(f"unknown model kind: {kind}")
+    if config["model"]["architecture"] not in {"compact_unet", "smp_unet", "resnet34_unet"}:
+        raise ValueError("model.architecture must be compact_unet or smp_unet")
+    if config["model"]["architecture"] == "smp_unet" and not str(
+        config["model"].get("encoder_name", "")
+    ).strip():
+        raise ValueError("smp_unet requires model.encoder_name")
     if int(config["training"]["epochs"]) < 1:
         raise ValueError("training.epochs must be >= 1")
     if int(config["training"]["batch_size"]) < 1:
@@ -97,6 +95,9 @@ def validate_training_config(config: Mapping[str, Any]) -> None:
     positive_probability = float(config["data"]["positive_crop_probability"])
     if not 0 <= positive_probability <= 1:
         raise ValueError("data.positive_crop_probability must be in [0, 1]")
+    validation_file_list = config["data"].get("validation_file_list")
+    if validation_file_list is not None and not str(validation_file_list).strip():
+        raise ValueError("data.validation_file_list must be a path or null")
     tile_size = int(config["validation"]["tile_size"])
     if tile_size < 32 or tile_size % 32:
         raise ValueError("validation.tile_size must be >= 32 and divisible by 32")
@@ -112,18 +113,6 @@ def validate_training_config(config: Mapping[str, Any]) -> None:
         raise ValueError("validation.full_pq_interval must be >= 1")
     if int(config["validation"]["tile_batch_size"]) < 1:
         raise ValueError("validation.tile_batch_size must be >= 1")
-    if kind == "detail" and not config["training"].get("teacher_checkpoint"):
-        raise ValueError("detail training requires training.teacher_checkpoint")
-    augmentation = config["training"].get("teacher_probability_augmentation") or {}
-    dropout = float(augmentation.get("dropout", 0.0))
-    blur_probability = float(augmentation.get("blur_probability", 0.0))
-    blur_kernel = int(augmentation.get("blur_kernel", 3))
-    if not 0 <= dropout < 1:
-        raise ValueError("teacher probability dropout must be in [0, 1)")
-    if not 0 <= blur_probability <= 1:
-        raise ValueError("teacher blur_probability must be in [0, 1]")
-    if blur_kernel < 1 or blur_kernel % 2 == 0:
-        raise ValueError("teacher blur_kernel must be a positive odd integer")
 
 
 def load_training_config(path: str | Path, overrides: Mapping[str, Any] | None = None) -> dict:

@@ -95,7 +95,6 @@ def test_closing_iterations_zero_through_three_are_legal():
             threshold=0.5,
             min_area=1,
             closing_iterations=iterations,
-            use_watershed=False,
         )
         assert labels.shape == probability.shape
         assert labels.dtype == np.int32
@@ -113,7 +112,6 @@ def test_closing_iterations_rejects_invalid_values():
                 probability,
                 min_area=1,
                 closing_iterations=invalid,
-                use_watershed=False,
             )
 
 

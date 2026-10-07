@@ -16,43 +16,18 @@ from .folds import load_fold_manifest
 from .masks import annotations_to_masks
 
 
-def _targets(instances: list[np.ndarray], shape: tuple[int, int] | None = None) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Build semantic, boundary and normalized distance targets."""
+def _semantic_target(
+    instances: list[np.ndarray], shape: tuple[int, int] | None = None
+) -> np.ndarray:
+    """Build the binary semantic target used by the single-model core."""
     if not instances:
         shape = shape or (1, 1)
-        return np.zeros(shape, np.float32), np.zeros(shape, np.float32), np.zeros(shape, np.float32)
+        return np.zeros(shape, np.float32)
     h, w = instances[0].shape
     semantic = np.zeros((h, w), dtype=bool)
-    boundary = np.zeros((h, w), dtype=bool)
-    distance = np.zeros((h, w), dtype=np.float32)
-    try:
-        from scipy import ndimage
-    except ImportError as exc:  # pragma: no cover
-        raise RuntimeError("scipy is required for boundary and distance targets") from exc
     for mask in instances:
-        mask = np.asarray(mask, dtype=bool)
-        semantic |= mask
-        points = np.argwhere(mask)
-        if not len(points):
-            continue
-        y0, x0 = points.min(axis=0)
-        y1, x1 = points.max(axis=0) + 1
-        local_mask = mask[y0:y1, x0:x1]
-        eroded = ndimage.binary_erosion(local_mask, iterations=1, border_value=0)
-        boundary[y0:y1, x0:x1] |= local_mask & ~eroded
-        padding = (
-            (1 if y0 > 0 else 0, 1 if y1 < h else 0),
-            (1 if x0 > 0 else 0, 1 if x1 < w else 0),
-        )
-        padded_mask = np.pad(local_mask, padding, mode="constant")
-        padded_distance = ndimage.distance_transform_edt(padded_mask)
-        top, left = padding[0][0], padding[1][0]
-        d = padded_distance[top:top + local_mask.shape[0], left:left + local_mask.shape[1]]
-        if d.max() > 0:
-            distance[y0:y1, x0:x1] = np.maximum(
-                distance[y0:y1, x0:x1], d / d.max()
-            )
-    return semantic.astype(np.float32), boundary.astype(np.float32), distance
+        semantic |= np.asarray(mask, dtype=bool)
+    return semantic.astype(np.float32)
 
 
 def _instance_boxes(instances: list[np.ndarray]) -> np.ndarray:
@@ -187,45 +162,41 @@ class FilamentDataset(Dataset):
                         f"stale target cache for {name}: {cached_image_id} != {selected_image_id}"
                     )
                 semantic = cached["semantic"].astype(np.float32)
-                boundary = cached["boundary"].astype(np.float32)
-                distance = cached["distance"].astype(np.float32)
                 instance_boxes = cached["instance_boxes"].astype(np.int32)
         else:
             instances = annotations_to_masks(
                 self.coco.annotations_for_batch(selected_image_id), *image_array.shape
             ) if self.coco else []
-            semantic, boundary, distance = _targets(instances, image_array.shape)
+            semantic = _semantic_target(instances, image_array.shape)
             instance_boxes = _instance_boxes(instances)
         arrays = _crop(
-            [image_array[None], semantic[None], boundary[None], distance[None]],
+            [image_array[None], semantic[None]],
             self.image_size, rng, self.train, self.positive_crop_probability,
             instance_boxes,
         )
-        image_array, semantic, boundary, distance = [x[0] for x in arrays]
+        image_array, semantic = [x[0] for x in arrays]
         if self.train and rng.random() < 0.5:
-            image_array, semantic, boundary, distance = [np.flip(x, axis=1).copy() for x in (image_array, semantic, boundary, distance)]
+            image_array, semantic = [np.flip(x, axis=1).copy() for x in (image_array, semantic)]
         if self.train and rng.random() < 0.5:
-            image_array, semantic, boundary, distance = [np.flip(x, axis=0).copy() for x in (image_array, semantic, boundary, distance)]
+            image_array, semantic = [np.flip(x, axis=0).copy() for x in (image_array, semantic)]
         if self.train:
             rotations = int(rng.integers(0, 4))
             if rotations:
-                image_array, semantic, boundary, distance = [
+                image_array, semantic = [
                     np.rot90(x, rotations).copy()
-                    for x in (image_array, semantic, boundary, distance)
+                    for x in (image_array, semantic)
                 ]
         if self.train and rng.random() < 0.3:
             gamma = float(rng.uniform(0.8, 1.2))
             image_array = np.clip(image_array ** gamma, 0, 1)
         return {"image": image_array[None].astype(np.float32),
                 "semantic_mask": semantic[None].astype(np.float32),
-                "boundary_mask": boundary[None].astype(np.float32),
-                "distance_map": distance[None].astype(np.float32),
                 "file_name": name, "fold": int(record.get("fold", -1)),
                 "selected_image_id": selected_image_id}
 
     def __getitem__(self, index: int) -> dict[str, Any]:
         item = self._read(index)
-        for key in ("image", "semantic_mask", "boundary_mask", "distance_map"):
+        for key in ("image", "semantic_mask"):
             item[key] = torch.from_numpy(item[key])
         return item
 
@@ -233,7 +204,5 @@ class FilamentDataset(Dataset):
 def collate_filaments(batch: list[dict[str, Any]]) -> dict[str, Any]:
     return {"image": torch.stack([x["image"] for x in batch]),
             "semantic_mask": torch.stack([x["semantic_mask"] for x in batch]),
-            "boundary_mask": torch.stack([x["boundary_mask"] for x in batch]),
-            "distance_map": torch.stack([x["distance_map"] for x in batch]),
             "file_name": [x["file_name"] for x in batch], "fold": [x["fold"] for x in batch],
             "selected_image_id": [x["selected_image_id"] for x in batch]}

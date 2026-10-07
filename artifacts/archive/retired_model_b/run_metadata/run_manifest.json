@@ -1,0 +1,59 @@
+{
+  "created_at_utc": "2026-09-26T06:13:47.857865+00:00",
+  "competition": {
+    "slug": "filament-segmentation-2026",
+    "metric": "official_pq_v6",
+    "metric_source": "https://www.kaggle.com/code/azimahmadzadeh/self-evaluation-notebook",
+    "metric_source_version": 6
+  },
+  "config_fingerprint": "a7a4bc7df0b83dcb8a89aa72b46918f3f21087bf9b13edf83bc4e3093a42f00b",
+  "command": [
+    "/home/yu/\u684c\u9762/Solar Filament Segmentation/filament-segmentation-2026/scripts/train.py",
+    "--config",
+    "configs/detail_efficientnet_b0_fold0.yaml"
+  ],
+  "data": {
+    "annotation_file": "MAGFiLO_1.0_Kaggle_2026/train/MAGFiLO_1.0_Annotations_kaggle2026_train.json",
+    "annotation_sha256": "5da9e92b5a1a1947fd5d57adb6688269625c48ec1ef884daf2a01618c9ed54a1",
+    "fold_manifest": "data/manifests/train_folds.csv",
+    "fold_manifest_sha256": "cc3cf309d5dc6ff283259d15771f9122acf27558103695b45b42fb83c9e191ed",
+    "cache_manifest": {
+      "schema_version": 2,
+      "target_policy": "medoid_annotator_v1",
+      "annotation_sha256": "5da9e92b5a1a1947fd5d57adb6688269625c48ec1ef884daf2a01618c9ed54a1",
+      "fold_manifest_sha256": "cc3cf309d5dc6ff283259d15771f9122acf27558103695b45b42fb83c9e191ed",
+      "expected_images": 707
+    },
+    "ground_truth_policy": "competition_train_annotations_only",
+    "train_physical_images": 569,
+    "validation_physical_images": 138
+  },
+  "model": {
+    "parameters": 6251181,
+    "pretrained_weights": "imagenet",
+    "teacher_checkpoint": "artifacts/runs/global_resnet34_fold0/checkpoints/best.pt",
+    "teacher_checkpoint_sha256": "eb6184b98f5fade85d47b4ad720de3031ce7e7771456cff985407979bffbd054"
+  },
+  "runtime": {
+    "python": "3.11.16",
+    "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.35",
+    "device": "cuda",
+    "cuda_available": true,
+    "cuda_runtime": "12.8",
+    "cudnn": 91002,
+    "gpu_name": "NVIDIA GeForce RTX 5070 Laptop GPU",
+    "dependencies": {
+      "numpy": "2.4.6",
+      "scipy": "1.17.1",
+      "scikit-image": "0.26.0",
+      "Pillow": "11.1.0",
+      "opencv-python-headless": "5.0.0.93",
+      "pycocotools": "2.0.11",
+      "tqdm": "4.70.1",
+      "torch": "2.8.0+cu128",
+      "torchvision": "0.23.0+cu128",
+      "segmentation-models-pytorch": "0.5.0",
+      "PyYAML": "6.0.3"
+    }
+  }
+}

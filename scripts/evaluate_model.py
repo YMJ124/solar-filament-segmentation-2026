@@ -22,8 +22,7 @@ from src.models import load_model_from_checkpoint
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-root", default="MAGFiLO_1.0_Kaggle_2026")
-    parser.add_argument("--global-checkpoint", required=True)
-    parser.add_argument("--detail-checkpoint")
+    parser.add_argument("--checkpoint", required=True)
     parser.add_argument("--fold", type=int, default=0)
     parser.add_argument("--fold-manifest", default="data/manifests/train_folds.csv")
     parser.add_argument("--tile-size", type=int, default=256)
@@ -43,16 +42,9 @@ def main() -> None:
     records = load_fold_manifest(args.fold_manifest, annotation_file)
     records = [row for row in records if row["fold"] == args.fold]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    models = {"global": load_model_from_checkpoint(
-        args.global_checkpoint, device, expected_kind="global"
-    )}
-    if args.detail_checkpoint:
-        models["detail"] = load_model_from_checkpoint(
-            args.detail_checkpoint, device, expected_kind="detail"
-        )
-    weights = (0.0, 1.0, 0.0) if args.detail_checkpoint else (1.0, 0.0, 0.0)
+    model = load_model_from_checkpoint(args.checkpoint, device, expected_kind="global")
     report = evaluate_full_images(
-        models,
+        model,
         records,
         coco,
         root / "train/train_images",
@@ -67,14 +59,9 @@ def main() -> None:
             "max_instances": args.max_instances,
             "max_images": args.max_images,
         },
-        weights=weights,
-        save_components=bool(args.detail_checkpoint),
     )
     report["fold"] = args.fold
-    report["checkpoints"] = {
-        "global": args.global_checkpoint,
-        "detail": args.detail_checkpoint,
-    }
+    report["checkpoint"] = args.checkpoint
     print(json.dumps(report, indent=2))
     if args.output:
         atomic_write_json(args.output, report)

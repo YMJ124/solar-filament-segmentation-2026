@@ -1,20 +1,8 @@
-"""Instance extraction and ensemble probability fusion."""
+"""Instance extraction from a single semantic probability map."""
 
 from __future__ import annotations
 
 import numpy as np
-
-
-def fuse_probabilities(probabilities: list[np.ndarray], weights: list[float] | None = None) -> np.ndarray:
-    if not probabilities:
-        raise ValueError("at least one probability map is required")
-    arrays = [np.asarray(x, dtype=np.float32) for x in probabilities]
-    if any(x.shape != arrays[0].shape for x in arrays):
-        raise ValueError("all probability maps must have the same shape")
-    weights = weights or [1.0 / len(arrays)] * len(arrays)
-    if len(weights) != len(arrays) or sum(weights) <= 0:
-        raise ValueError("weights must match probabilities and have a positive sum")
-    return np.clip(sum(w * x for w, x in zip(weights, arrays)) / sum(weights), 0, 1)
 
 
 def filter_instance_labels(
@@ -52,8 +40,6 @@ def probability_to_component_labels(
     probability: np.ndarray,
     threshold: float = 0.5,
     closing_iterations: int = 1,
-    boundary: np.ndarray | None = None,
-    boundary_threshold: float = 0.5,
 ) -> np.ndarray:
     """Threshold, optionally close, and label 8-connected foreground components."""
     from scipy import ndimage
@@ -74,11 +60,6 @@ def probability_to_component_labels(
             foreground,
             iterations=closing_iterations,
         )
-    if boundary is not None:
-        boundary = np.asarray(boundary)
-        if boundary.shape != probability.shape:
-            raise ValueError("boundary must have the same shape as probability")
-        foreground &= boundary < boundary_threshold
     labels, _ = ndimage.label(
         foreground, structure=np.ones((3, 3), dtype=np.uint8)
     )
@@ -91,41 +72,18 @@ def probability_to_instance_labels(
     min_area: int = 80,
     *,
     closing_iterations: int = 1,
-    boundary: np.ndarray | None = None,
-    distance: np.ndarray | None = None,
-    boundary_threshold: float = 0.5,
     max_area_fraction: float = 0.35,
-    use_watershed: bool = True,
-    marker_threshold: float = 0.15,
-    marker_min_distance: int = 8,
-    max_markers: int = 256,
     max_instances: int = 128,
 ) -> np.ndarray:
-    """Convert fused probabilities into a bounded, compact instance label map."""
-    from skimage.feature import peak_local_max
-    from skimage.segmentation import watershed
-
+    """Convert probabilities into a bounded, compact component label map."""
     probability = np.asarray(probability, dtype=np.float32)
     component_labels = probability_to_component_labels(
         probability,
         threshold=threshold,
         closing_iterations=closing_iterations,
-        boundary=boundary,
-        boundary_threshold=boundary_threshold,
     )
     foreground = component_labels > 0
     max_area = int(foreground.size * max_area_fraction)
-    if use_watershed and distance is not None and foreground.any():
-        distance = np.asarray(distance, dtype=np.float32) * foreground
-        coordinates = peak_local_max(distance, min_distance=marker_min_distance,
-                                     threshold_abs=marker_threshold, labels=foreground,
-                                     exclude_border=False, num_peaks=max_markers)
-        markers = np.zeros(foreground.shape, dtype=np.int32)
-        for idx, (y, x) in enumerate(coordinates, start=1):
-            markers[y, x] = idx
-        if markers.max() > 0:
-            labels = watershed(-distance, markers, mask=foreground)
-            return filter_instance_labels(labels, min_area, max_area, max_instances)
     return filter_instance_labels(
         component_labels, min_area, max_area, max_instances
     )
@@ -137,14 +95,7 @@ def probability_to_instances(
     min_area: int = 80,
     *,
     closing_iterations: int = 1,
-    boundary: np.ndarray | None = None,
-    distance: np.ndarray | None = None,
-    boundary_threshold: float = 0.5,
     max_area_fraction: float = 0.35,
-    use_watershed: bool = True,
-    marker_threshold: float = 0.15,
-    marker_min_distance: int = 8,
-    max_markers: int = 256,
     max_instances: int = 128,
 ) -> list[np.ndarray]:
     """Compatibility wrapper returning independent dense instance masks."""
@@ -153,14 +104,7 @@ def probability_to_instances(
         threshold=threshold,
         min_area=min_area,
         closing_iterations=closing_iterations,
-        boundary=boundary,
-        distance=distance,
-        boundary_threshold=boundary_threshold,
         max_area_fraction=max_area_fraction,
-        use_watershed=use_watershed,
-        marker_threshold=marker_threshold,
-        marker_min_distance=marker_min_distance,
-        max_markers=max_markers,
         max_instances=max_instances,
     )
     return labels_to_instances(labels)

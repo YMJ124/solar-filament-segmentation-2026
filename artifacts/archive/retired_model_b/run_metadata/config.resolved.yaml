@@ -1,10 +1,8 @@
 schema_version: 1
-
 run:
   name: detail_efficientnet_b0_fold0
   seed: 2026
   deterministic: true
-
 data:
   data_root: MAGFiLO_1.0_Kaggle_2026
   fold_manifest: data/manifests/train_folds.csv
@@ -13,15 +11,12 @@ data:
   image_size: 256
   positive_crop_probability: 0.7
   num_workers: 2
-
 model:
   kind: detail
   architecture: efficientnet_b0_unet
   encoder_weights: imagenet
-  # Exact statistics from the 569 physical training images outside fold 0.
   input_mean: 0.326732
   input_std: 0.223022
-
 training:
   epochs: 40
   batch_size: 4
@@ -36,16 +31,14 @@ training:
   teacher_checkpoint: artifacts/runs/global_resnet34_fold0/checkpoints/best.pt
   teacher_probability_augmentation:
     dropout: 0.03
-    blur_probability: 0.20
+    blur_probability: 0.2
     blur_kernel: 3
-
 validation:
   full_pq_enabled: true
   full_pq_interval: 5
   tile_size: 256
   tile_batch_size: 8
   overlap: 0.25
-  # Frozen Stage-1 OOF post-processing values.
   threshold: 0.325
   min_area: 160
   closing_iterations: 1
@@ -56,6 +49,5 @@ validation:
   max_images: null
   save_best_oof: true
   save_components: true
-
 artifacts:
   run_dir: artifacts/runs/detail_efficientnet_b0_fold0
