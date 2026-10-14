@@ -28,3 +28,10 @@ wandb/
 kaggle.json
 *.zip
 /*.pt
+
+# Pretrained and trained weights
+weights/
+*.pt
+
+# Local reports
+deliverables/

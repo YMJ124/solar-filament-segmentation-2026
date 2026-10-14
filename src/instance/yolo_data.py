@@ -12,6 +12,12 @@ import yaml
 from src.data.coco import CocoAnnotations
 from src.io_utils import atomic_write_json
 
+from .annotator_schedule import (
+    MEDOID_TARGET_POLICY,
+    RANDOM_ANNOTATOR_TARGET_POLICY,
+    SUPPORTED_TARGET_POLICIES,
+)
+
 
 def _sha256(path: Path) -> str:
     digest = hashlib.sha256()
@@ -61,11 +67,15 @@ def build_yolo_segmentation_dataset(
     *,
     validation_fold: int,
     fold_manifest: str | Path,
+    target_policy: str = MEDOID_TARGET_POLICY,
+    selection_seed: int = 2026,
 ) -> dict[str, Any]:
-    """Create labels and image symlinks using one medoid annotation per JPEG."""
+    """Create one-image-per-observation YOLO data with a versioned target policy."""
     selected = [dict(record) for record in records]
     if not selected:
         raise ValueError("no fold records supplied")
+    if target_policy not in SUPPORTED_TARGET_POLICIES:
+        raise ValueError(f"unsupported target policy: {target_policy}")
     output = Path(output_dir)
     if output.exists() and any(output.iterdir()):
         raise FileExistsError(f"output directory is not empty: {output}")
@@ -75,6 +85,8 @@ def build_yolo_segmentation_dataset(
     instance_counts = {"train": 0, "val": 0}
     empty_counts = {"train": 0, "val": 0}
     selected_ids: dict[str, str] = {}
+    train_targets: dict[str, list[dict[str, str]]] = {}
+    annotator_label_count = 0
     for split in split_counts:
         (output / "images" / split).mkdir(parents=True, exist_ok=True)
         (output / "labels" / split).mkdir(parents=True, exist_ok=True)
@@ -96,23 +108,88 @@ def build_yolo_segmentation_dataset(
         _replace_symlink(source, output / "images" / split / file_name)
         label_path = output / "labels" / split / f"{Path(file_name).stem}.txt"
         label_path.write_text("\n".join(lines) + ("\n" if lines else ""))
+        if split == "train" and target_policy == RANDOM_ANNOTATOR_TARGET_POLICY:
+            alternatives = []
+            alternative_dir = output / "annotator_labels" / Path(file_name).stem
+            alternative_dir.mkdir(parents=True, exist_ok=True)
+            for annotator_index, annotator_batch in enumerate(
+                coco.batches_for_file(file_name)
+            ):
+                annotator_id = str(annotator_batch["id"])
+                annotator_shape = (
+                    int(annotator_batch["width"]),
+                    int(annotator_batch["height"]),
+                )
+                if annotator_shape != (width, height):
+                    raise ValueError(
+                        f"annotator image dimensions disagree for {file_name}: "
+                        f"{annotator_shape} != {(width, height)}"
+                    )
+                annotator_lines = yolo_segment_lines(
+                    coco.annotations_for_batch(annotator_id), width, height
+                )
+                annotator_path = alternative_dir / f"{annotator_index:02d}.txt"
+                annotator_path.write_text(
+                    "\n".join(annotator_lines) + ("\n" if annotator_lines else "")
+                )
+                alternatives.append(
+                    {
+                        "image_id": annotator_id,
+                        "label_file": str(annotator_path.resolve()),
+                    }
+                )
+                annotator_label_count += 1
+            train_targets[file_name] = alternatives
         split_counts[split] += 1
         instance_counts[split] += len(lines)
         empty_counts[split] += int(not lines)
         selected_ids[file_name] = image_id
 
-    dataset_yaml = {
+    dataset_yaml: dict[str, Any] = {
         "path": str(output.resolve()),
         "train": "images/train",
         "val": "images/val",
         "names": {0: "filament"},
+        "target_policy": target_policy,
     }
+    annotator_manifest_path = output / "annotator_manifest.json"
+    if target_policy == RANDOM_ANNOTATOR_TARGET_POLICY:
+        annotator_payload = {
+            "schema_version": 1,
+            "target_policy": RANDOM_ANNOTATOR_TARGET_POLICY,
+            "selection_algorithm": "sha256_seeded_permutation_then_epoch_cycle_v1",
+            "selection_seed": int(selection_seed),
+            "validation_policy": MEDOID_TARGET_POLICY,
+            "physical_train_images": split_counts["train"],
+            "annotator_label_files": annotator_label_count,
+            "train_targets": train_targets,
+        }
+        atomic_write_json(annotator_manifest_path, annotator_payload)
+        dataset_yaml.update(
+            {
+                "annotator_manifest": str(annotator_manifest_path.resolve()),
+                "selection_seed": int(selection_seed),
+                "validation_target_policy": MEDOID_TARGET_POLICY,
+            }
+        )
     (output / "dataset.yaml").write_text(
         yaml.safe_dump(dataset_yaml, sort_keys=False, allow_unicode=True)
     )
     manifest = {
         "schema_version": 1,
-        "target_policy": "medoid_annotator_v1",
+        "target_policy": target_policy,
+        "validation_target_policy": MEDOID_TARGET_POLICY,
+        "selection_seed": (
+            int(selection_seed)
+            if target_policy == RANDOM_ANNOTATOR_TARGET_POLICY
+            else None
+        ),
+        "annotator_manifest": (
+            str(annotator_manifest_path.resolve())
+            if target_policy == RANDOM_ANNOTATOR_TARGET_POLICY
+            else None
+        ),
+        "annotator_label_files": annotator_label_count,
         "validation_fold": int(validation_fold),
         "physical_images": split_counts,
         "instances": instance_counts,

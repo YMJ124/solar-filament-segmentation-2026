@@ -17,6 +17,7 @@ from PIL import Image
 
 from src.inference import predict_sliding_window
 from src.io_utils import atomic_write_json
+from src.legacy_semantic import add_legacy_semantic_flag, require_legacy_semantic_opt_in
 from src.models import load_model_from_checkpoint
 from src.postprocess.instances import probability_to_instance_labels
 from src.submission.rle import label_map_to_rles, rle_counts, write_submission
@@ -25,6 +26,7 @@ from src.submission.validate import audit_image_labels, audit_submission_rows
 
 def main() -> None:
     parser = argparse.ArgumentParser()
+    add_legacy_semantic_flag(parser)
     parser.add_argument("--data-root", default="MAGFiLO_1.0_Kaggle_2026")
     parser.add_argument("--checkpoint", required=True)
     parser.add_argument("--output", default="artifacts/submissions/single_model.csv")
@@ -39,6 +41,7 @@ def main() -> None:
         "--audit-report", default="artifacts/submissions/single_model_audit.json"
     )
     args = parser.parse_args()
+    require_legacy_semantic_opt_in(args.allow_legacy_semantic)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if device.type == "cuda":

@@ -1,7 +1,9 @@
 import numpy as np
 import pytest
 
-from src.instance import exclusive_label_map, yolo_segment_lines
+torch = pytest.importorskip("torch")
+
+from src.instance import exclusive_label_map, prediction_arrays, yolo_segment_lines
 
 
 def test_yolo_segment_lines_collapse_categories_and_normalize():
@@ -44,3 +46,40 @@ def test_exclusive_masks_force_one_and_area_filter():
     )
     assert labels.max() == 1
     assert (labels == 1).sum() == 4
+
+
+def test_yolo_prediction_arrays_resize_masks_and_copy_scores():
+    class Value:
+        def __init__(self, value):
+            self.value = torch.as_tensor(value)
+
+        def detach(self):
+            return self
+
+        def cpu(self):
+            return self
+
+        def numpy(self):
+            return self.value.numpy()
+
+    class Boxes:
+        def __init__(self):
+            self.conf = Value([0.75])
+
+        def __len__(self):
+            return 1
+
+    result = type(
+        "Result",
+        (),
+        {
+            "masks": type("Masks", (), {"data": Value([[[0, 1], [1, 0]]])})(),
+            "boxes": Boxes(),
+        },
+    )()
+
+    masks, scores = prediction_arrays(result, (4, 4))
+
+    assert masks.shape == (1, 4, 4)
+    assert masks.dtype == np.bool_
+    np.testing.assert_allclose(scores, [0.75])

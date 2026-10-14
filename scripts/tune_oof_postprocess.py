@@ -18,6 +18,7 @@ import yaml
 from src.data.coco import CocoAnnotations
 from src.data.folds import load_fold_manifest
 from src.io_utils import atomic_write_csv, atomic_write_json
+from src.legacy_semantic import add_legacy_semantic_flag, require_legacy_semantic_opt_in
 from src.oof_postprocess import (
     PostprocessConfig,
     evaluate_oof_configuration,
@@ -33,6 +34,7 @@ DEFAULT_MIN_AREAS = [20, 50, 80, 120, 160]
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
+    add_legacy_semantic_flag(parser)
     parser.add_argument(
         "--oof-dir",
         default="artifacts/runs/global_resnet34_fold0/oof_best",
@@ -212,6 +214,7 @@ def repeatability_signature(report: dict[str, Any]) -> dict[str, Any]:
 
 def main() -> None:
     args = parse_args()
+    require_legacy_semantic_opt_in(args.allow_legacy_semantic)
     thresholds = parse_values(args.thresholds, float, "thresholds")
     min_areas = parse_values(args.min_areas, int, "min_areas")
     closings = parse_values(args.closing_iterations, int, "closing_iterations")

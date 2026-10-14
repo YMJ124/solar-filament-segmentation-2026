@@ -16,6 +16,7 @@ import torch
 from src.data.dataset import FilamentDataset, collate_filaments
 from src.data.folds import load_fold_manifest
 from src.io_utils import atomic_write_json
+from src.legacy_semantic import add_legacy_semantic_flag, require_legacy_semantic_opt_in
 from src.losses import GlobalLoss
 from src.models import build_model
 from src.training_config import load_training_config
@@ -23,6 +24,7 @@ from src.training_config import load_training_config
 
 def main() -> None:
     parser = argparse.ArgumentParser()
+    add_legacy_semantic_flag(parser)
     parser.add_argument("--config", default="configs/global_resnet34_fold0.yaml")
     parser.add_argument("--steps", type=int, default=20)
     parser.add_argument("--batch-size", type=int)
@@ -32,6 +34,7 @@ def main() -> None:
         "--require-decrease", action=argparse.BooleanOptionalAction, default=True
     )
     args = parser.parse_args()
+    require_legacy_semantic_opt_in(args.allow_legacy_semantic)
     config = load_training_config(args.config)
     if config["model"]["kind"] != "global":
         parser.error("overfit_batch supports the single semantic model only")

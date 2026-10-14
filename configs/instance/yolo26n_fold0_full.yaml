@@ -14,7 +14,11 @@ training:
   imgsz: 1024
   batch: 4
   device: 0
-  workers: 4
+  # Safer on a 15 GiB host without swap; changes throughput, not batch math.
+  workers: 0
+  cache: false
+  # Preserve intermediate models because Ultralytics fitness and official PQ differ.
+  save_period: 5
   amp: true
   patience: 10
   degrees: 180.0

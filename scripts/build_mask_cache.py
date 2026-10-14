@@ -19,6 +19,7 @@ from src.data.dataset import _instance_boxes, _semantic_target
 from src.data.folds import load_fold_manifest
 from src.data.masks import annotations_to_masks
 from src.io_utils import atomic_write_json
+from src.legacy_semantic import add_legacy_semantic_flag, require_legacy_semantic_opt_in
 
 
 def _prepare_manifest(output, annotation_file, fold_manifest, expected_images):
@@ -55,11 +56,13 @@ def _write_cache_entry(path, selected_image_id, semantic, boxes):
 
 def main() -> None:
     parser = argparse.ArgumentParser()
+    add_legacy_semantic_flag(parser)
     parser.add_argument("--data-root", default="MAGFiLO_1.0_Kaggle_2026")
     parser.add_argument("--fold-manifest", default="data/manifests/train_folds.csv")
     parser.add_argument("--output", default="data/cache/medoid_semantic_v2")
     parser.add_argument("--max-images", type=int)
     args = parser.parse_args()
+    require_legacy_semantic_opt_in(args.allow_legacy_semantic)
 
     root = Path(args.data_root)
     output = Path(args.output)

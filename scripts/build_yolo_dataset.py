@@ -10,6 +10,10 @@ from pathlib import Path
 from src.data.coco import CocoAnnotations
 from src.data.folds import load_fold_manifest
 from src.instance import build_yolo_segmentation_dataset
+from src.instance.annotator_schedule import (
+    MEDOID_TARGET_POLICY,
+    RANDOM_ANNOTATOR_TARGET_POLICY,
+)
 
 
 def main() -> None:
@@ -18,11 +22,21 @@ def main() -> None:
     parser.add_argument("--fold-manifest", default="data/manifests/train_folds.csv")
     parser.add_argument("--fold", type=int, default=0)
     parser.add_argument("--output", default="data/processed/yolo_fold0")
+    parser.add_argument(
+        "--target-policy",
+        choices=("medoid", "random-annotator-per-epoch"),
+        default="medoid",
+    )
+    parser.add_argument("--selection-seed", type=int, default=2026)
     args = parser.parse_args()
     root = Path(args.data_root)
     annotation = root / "train/MAGFiLO_1.0_Annotations_kaggle2026_train.json"
     coco = CocoAnnotations(annotation)
     records = load_fold_manifest(args.fold_manifest, annotation)
+    target_policy = {
+        "medoid": MEDOID_TARGET_POLICY,
+        "random-annotator-per-epoch": RANDOM_ANNOTATOR_TARGET_POLICY,
+    }[args.target_policy]
     manifest = build_yolo_segmentation_dataset(
         records,
         coco,
@@ -30,6 +44,8 @@ def main() -> None:
         args.output,
         validation_fold=args.fold,
         fold_manifest=args.fold_manifest,
+        target_policy=target_policy,
+        selection_seed=args.selection_seed,
     )
     summary = {key: value for key, value in manifest.items() if key != "selected_image_ids"}
     print(json.dumps(summary, indent=2))

@@ -20,6 +20,7 @@ from PIL import Image
 from src.data.coco import CocoAnnotations
 from src.data.folds import load_fold_manifest
 from src.io_utils import atomic_write_json
+from src.legacy_semantic import add_legacy_semantic_flag, require_legacy_semantic_opt_in
 from src.oof_error_analysis import (
     CATEGORY_LABELS,
     analyze_oof_image,
@@ -45,6 +46,7 @@ GROUP_LABELS = {
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
+    add_legacy_semantic_flag(parser)
     parser.add_argument(
         "--oof-dir",
         default="artifacts/runs/global_resnet34_fold0/oof_best",
@@ -244,6 +246,7 @@ def build_summary(index: dict[str, Any]) -> str:
 
 def main() -> None:
     args = parse_args()
+    require_legacy_semantic_opt_in(args.allow_legacy_semantic)
     if args.output_dir.exists() and any(args.output_dir.iterdir()) and not args.overwrite:
         raise FileExistsError(
             f"output directory is not empty: {args.output_dir}; pass --overwrite to replace files"

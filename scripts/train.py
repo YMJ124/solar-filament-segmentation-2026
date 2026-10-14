@@ -35,6 +35,7 @@ from src.engine import (
 )
 from src.full_image_validation import evaluate_full_images
 from src.io_utils import atomic_write_json
+from src.legacy_semantic import add_legacy_semantic_flag, require_legacy_semantic_opt_in
 from src.models import build_model
 from src.models.factory import normalize_model_config
 from src.metrics.pq import OFFICIAL_METRIC_NAME, OFFICIAL_METRIC_SOURCE
@@ -192,6 +193,7 @@ def _cli_overrides(args) -> dict:
 
 def _parse_args():
     parser = argparse.ArgumentParser()
+    add_legacy_semantic_flag(parser)
     parser.add_argument("--config", default="configs/global_resnet34_fold0.yaml")
     parser.add_argument("--resume")
     parser.add_argument("--data-root")
@@ -215,6 +217,7 @@ def _parse_args():
 
 def main() -> None:
     args = _parse_args()
+    require_legacy_semantic_opt_in(args.allow_legacy_semantic)
     config = load_training_config(args.config, _cli_overrides(args))
     run_cfg, data_cfg = config["run"], config["data"]
     model_cfg, train_cfg = config["model"], config["training"]

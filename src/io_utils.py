@@ -29,6 +29,24 @@ def atomic_write_json(path: str | Path, payload: Mapping[str, Any]) -> None:
         raise
 
 
+def atomic_write_text(path: str | Path, content: str) -> None:
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=path.parent, text=True
+    )
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    except BaseException:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+        raise
+
+
 def atomic_write_csv(
     path: str | Path,
     fieldnames: list[str],

@@ -16,11 +16,13 @@ from src.data.coco import CocoAnnotations
 from src.data.folds import load_fold_manifest
 from src.full_image_validation import evaluate_full_images
 from src.io_utils import atomic_write_json
+from src.legacy_semantic import add_legacy_semantic_flag, require_legacy_semantic_opt_in
 from src.models import load_model_from_checkpoint
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
+    add_legacy_semantic_flag(parser)
     parser.add_argument("--data-root", default="MAGFiLO_1.0_Kaggle_2026")
     parser.add_argument("--checkpoint", required=True)
     parser.add_argument("--fold", type=int, default=0)
@@ -35,6 +37,7 @@ def main() -> None:
     parser.add_argument("--max-images", type=int)
     parser.add_argument("--output")
     args = parser.parse_args()
+    require_legacy_semantic_opt_in(args.allow_legacy_semantic)
 
     root = Path(args.data_root)
     annotation_file = root / "train/MAGFiLO_1.0_Annotations_kaggle2026_train.json"

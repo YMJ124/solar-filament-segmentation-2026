@@ -1,0 +1,35 @@
+schema_version: 1
+run:
+  name: b0_medoid_1024_fold2
+  project: artifacts/instance/stage_p1
+  seed: 2026
+  deterministic: true
+data:
+  dataset_yaml: data/processed/yolo_stage_p1/medoid_fold2/dataset.yaml
+  target_policy: medoid_annotator_v1
+model:
+  weights: yolo26n-seg.pt
+  ultralytics_version: 8.4.138
+training:
+  epochs: 5
+  imgsz: 1024
+  batch: 2
+  device: 0
+  workers: 0
+  cache: false
+  save_period: 1
+  amp: true
+  patience: 5
+  degrees: 180.0
+  fliplr: 0.5
+  flipud: 0.5
+  mosaic: 0.0
+  translate: 0.0
+  scale: 0.0
+  shear: 0.0
+  perspective: 0.0
+  hsv_h: 0.0
+  hsv_s: 0.0
+  hsv_v: 0.0
+  plots: true
+  save: true

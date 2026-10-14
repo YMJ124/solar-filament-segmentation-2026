@@ -1,71 +1,100 @@
 # Filament Segmentation 2026
 
-面向 Solar Filament Segmentation 2026 的单模型实验仓库。当前主线是：
+面向 Solar Filament Segmentation 2026 的单模型实验仓库。当前唯一默认主线是：
 
-`灰度图 -> 单个原生实例分割模型 -> 互斥实例 -> 官方 PQ -> submission`
+`YOLO 原生实例分割 -> 原始候选缓存 -> CPU 后处理搜索 -> 官方 PQ -> 错误图谱`
 
-`resnet34_256` 以固定 32 图 PQ `0.122442` 作为语义控制组。Model B、集成、
-Flat U-Net、整图 512 缩放和其他失败候选已退出活跃代码；报告和权重哈希保存在
-`artifacts/archive/`。
+旧语义分割路线已从默认流程中剔除；代码仅作为显式 legacy/control 保留。
+`artifacts/analysis/errors_fold0` 是旧语义模型产物，不能解释当前 YOLO。详见
+[`docs/legacy_semantic_control.md`](docs/legacy_semantic_control.md)。
 
-## 环境与数据准备
+## 环境与数据
 
 ```bash
 conda activate solar-filament
 cd "/home/yu/桌面/Solar Filament Segmentation/filament-segmentation-2026"
+python -m pip install -r requirements-yolo.txt
 python -m scripts.audit_dataset
 python -m scripts.build_folds --n-splits 5 --seed 2026
-python -m scripts.build_mask_cache --output data/cache/medoid_semantic_v2
 python -m scripts.build_screen_manifest
 python -m scripts.build_yolo_dataset --output data/processed/yolo_fold0
 ```
 
-缓存仅包含固定 medoid annotator 的 semantic target 和实例框。训练验证严格按观测日期分组；整图预测会分别与每个标注者 batch 评分，不能把多标注者掩膜合并。
+YOLO 数据集使用 fold manifest 指定的 medoid annotator 训练。验证时同一张物理图像的
+预测会对所有标注者 batch 分别计分，不会合并多标注者 GT。
 
-## 当前主线：原生实例分割
+## P0 评估闭环
 
-公开的比赛方案显示，当地高分的主要增益来自原生实例建模，而不是将语义概率图
-继续拆成连通域。当前只引入单个 YOLO26n-seg 候选，不做集成。参考来源与取舍见
-[`docs/community_references.md`](docs/community_references.md)。
-
-安装可选实例分割依赖：
+第一步是唯一需要 GPU 的长时步骤：对 checkpoint 执行一次推理，将原始候选 mask
+以 COCO 压缩 RLE 按图保存。缓存 manifest 记录 checkpoint/config SHA256、推理分辨率、
+原始尺寸、图像/标注批次 ID、候选置信度和完整运行指纹。
 
 ```bash
-python -m pip install -r requirements-yolo.txt
+python -m scripts.cache_yolo_candidates \
+  --checkpoint artifacts/instance/yolo26n_fold0_full/weights/best.pt \
+  --fold 0 --imgsz 1024 --quantize 16 --no-retina-masks \
+  --candidate-confidence 0.01 --max-candidates 50 \
+  --output-dir artifacts/instance/yolo26n_fold0_full/candidates_fold0
 ```
 
-检查已解析的训练参数，不启动训练：
+中断后使用同一命令并添加 `--resume`；只会复用运行指纹完全一致的逐图缓存。
+
+之后的参数搜索全在 CPU 上运行，不加载 checkpoint：
+
+```bash
+python -m scripts.evaluate_yolo \
+  --cache-dir artifacts/instance/yolo26n_fold0_full/candidates_fold0 \
+  --confidences 0.05 0.10 0.15 0.20 0.25 \
+  --min-areas 200 300 400 600 800 \
+  --max-instances 5 10 15 20 \
+  --output artifacts/instance/yolo26n_fold0_full/postprocess_fold0.json
+```
+
+固定 32 图面板可在同一份 Fold-0 缓存上离线筛选，无需重新推理：
+
+```bash
+python -m scripts.evaluate_yolo \
+  --cache-dir artifacts/instance/yolo26n_fold0_full/candidates_fold0 \
+  --validation-file-list data/manifests/screen_fold0_32.json \
+  --confidences 0.05 0.10 0.15 0.20 \
+  --min-areas 200 400 600 --max-instances 5 10 20 \
+  --output artifacts/instance/yolo26n_fold0_full/postprocess_screen32.json
+```
+
+选定后处理参数后生成当前 YOLO 的错误分析：
+
+```bash
+python -m scripts.analyze_yolo_errors \
+  --cache-dir artifacts/instance/yolo26n_fold0_full/candidates_fold0 \
+  --confidence 0.10 --min-area 400 --max-instances 20 \
+  --small-instance-area 400 --large-fp-area 10000 \
+  --output-dir artifacts/analysis/yolo26n_fold0_full_errors
+```
+
+输出包括 `image_metrics.csv`、`annotator_metrics.csv`、`index.json`、最好/最差及各错误类型图像的
+四联可视化，以及可直接浏览的 `README.md`。
+
+## 训练与提交
+
+检查训练参数而不启动训练：
 
 ```bash
 python -m scripts.train_yolo \
   --config configs/instance/yolo26n_fold0_proxy.yaml --dry-run
 ```
 
-五轮 proxy 训练和官方 PQ 验收命令见
-[`docs/experiment_plan.md`](docs/experiment_plan.md)。只有固定面板 PQ 达到 `0.20` 才进入 30 epoch 确认。
-
-## 保留的语义控制组
+YOLO 单模型提交文件由独立入口生成，写入前会审计 RLE、重叠、图像覆盖和实例 ID：
 
 ```bash
-python -m scripts.train --config configs/global_resnet34_fold0.yaml
-
-python -m scripts.evaluate_model \
-  --checkpoint artifacts/runs/global_resnet34_fold0/checkpoints/best.pt \
-  --fold 0 --tile-size 256 --threshold 0.3 --min-area 200 \
-  --output artifacts/validation/global_fold0_metrics.json
-
-python -m scripts.run_submission \
-  --checkpoint artifacts/runs/global_resnet34_fold0/checkpoints/best.pt \
-  --tile-size 256 --threshold 0.3 --min-area 200
+python -m scripts.run_yolo_submission \
+  --checkpoint artifacts/instance/yolo26n_fold0_full/weights/best.pt \
+  --imgsz 1024 --quantize 16 --no-retina-masks \
+  --confidence 0.10 --max-instances 20 --min-area 400 \
+  --output artifacts/submissions/yolo26n_fold0_full.csv
 ```
 
-`last.pt` 含 optimizer、scheduler、AMP scaler、RNG 和完整配置，可严格续训；`best.pt` 是较小的推理 checkpoint。续训配置指纹必须一致：
+详细的分阶段门槛见 [`docs/experiment_plan.md`](docs/experiment_plan.md)，比赛边界与交付要求见
+[`docs/competition_compliance.md`](docs/competition_compliance.md)。
 
-```bash
-python -m scripts.train --config configs/global_resnet34_fold0.yaml \
-  --resume artifacts/runs/global_resnet34_fold0/checkpoints/last.pt
-```
-
-阈值和最小面积只能在 OOF 上选择。当前 `0.3/200` 来自旧 A-only Fold-0 搜索，是起点而非跨模型通用最优值。
-
-比赛边界与交付要求见 [`docs/competition_compliance.md`](docs/competition_compliance.md)。
+当前 B0/C1/C2 三 Fold 阶段的完整执行顺序与命令见
+[`docs/stage_p1_runbook.md`](docs/stage_p1_runbook.md)。
