@@ -41,6 +41,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fold", type=int, default=0)
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument("--imgsz", type=int, default=1024)
+    parser.add_argument(
+        "--allow-inference-imgsz-mismatch",
+        action="store_true",
+        help=(
+            "explicitly allow inference imgsz to differ from the recorded training "
+            "imgsz; the mismatch is persisted in cache provenance"
+        ),
+    )
     parser.add_argument("--device", default="0")
     parser.add_argument("--quantize", type=int, choices=(16, 32), default=16)
     parser.add_argument(
@@ -115,6 +123,8 @@ def _experiment_metadata(model_config: Path | None) -> dict:
             "deterministic": payload["run"].get("deterministic", True),
             "model": payload["model"].get("weights"),
             "data": payload["data"].get("dataset_yaml"),
+            "sampling_policy": payload["data"].get("sampling_policy"),
+            "sampling_manifest": payload["data"].get("sampling_manifest"),
         }
     run_name = payload.get("name")
     result = {
@@ -150,6 +160,28 @@ def _experiment_metadata(model_config: Path | None) -> dict:
             ),
         }
     )
+    sampling_policy = payload.get("sampling_policy")
+    sampling_manifest = payload.get("sampling_manifest")
+    if sampling_policy is not None:
+        result["sampling_policy"] = str(sampling_policy)
+    if sampling_manifest:
+        sampling_path = Path(str(sampling_manifest))
+        if not sampling_path.is_absolute():
+            candidates = [Path.cwd() / sampling_path, model_config.parent / sampling_path]
+            sampling_path = next(
+                (path for path in candidates if path.is_file()), candidates[0]
+            )
+        if not sampling_path.is_file():
+            raise FileNotFoundError(
+                f"training sampling manifest referenced by {model_config} is missing: "
+                f"{sampling_path}"
+            )
+        result.update(
+            {
+                "sampling_manifest": str(sampling_path.resolve()),
+                "sampling_manifest_sha256": sha256_file(sampling_path),
+            }
+        )
     signature_fields = (
         "model",
         "imgsz",
@@ -170,10 +202,49 @@ def _experiment_metadata(model_config: Path | None) -> dict:
         "deterministic",
     )
     signature = {key: payload.get(key) for key in signature_fields}
+    # The pinned Ultralytics version defaults mask_ratio to 4. Historical B0
+    # manifests recorded the resolved default, so normalize config YAMLs that
+    # omit it to the same semantic value.
+    if signature["mask_ratio"] is None:
+        signature["mask_ratio"] = 4
     signature["target_policy"] = result["target_policy"]
+    # Preserve historical B0/P1 signatures when no sampling policy was recorded.
+    # Sampling becomes part of identity only for configs that explicitly use it.
+    if result.get("sampling_policy") is not None:
+        signature["sampling_policy"] = result["sampling_policy"]
+    # The manifest itself is fold-specific data provenance and is recorded in
+    # `result`; including its hash here would make one common sampling policy
+    # look like three different experiments across validation folds.
     result["training_signature"] = signature
     result["training_signature_sha256"] = config_sha256(signature)
     return result
+
+
+def inference_resolution_provenance(
+    experiment: dict,
+    inference_imgsz: int,
+    *,
+    allow_mismatch: bool,
+) -> dict:
+    """Validate and describe an explicit train/inference resolution relationship."""
+    training_value = experiment.get("training_imgsz")
+    training_imgsz = int(training_value) if training_value is not None else None
+    mismatch = training_imgsz is not None and training_imgsz != int(inference_imgsz)
+    if mismatch and not allow_mismatch:
+        raise ValueError(
+            "cache inference resolution must match training resolution unless "
+            "--allow-inference-imgsz-mismatch is explicitly provided: "
+            f"{inference_imgsz} != {training_imgsz}"
+        )
+    return {
+        "training_imgsz": training_imgsz,
+        "inference_imgsz": int(inference_imgsz),
+        "train_inference_imgsz_mismatch": mismatch,
+        "mismatch_explicitly_allowed": bool(allow_mismatch),
+        "inference_to_training_ratio": (
+            float(inference_imgsz) / training_imgsz if training_imgsz else None
+        ),
+    }
 
 
 def main() -> None:
@@ -212,16 +283,15 @@ def main() -> None:
     if model_config is not None and not model_config.is_file():
         raise FileNotFoundError(f"model config not found: {model_config}")
     experiment = _experiment_metadata(model_config)
-    if experiment.get("training_imgsz") is not None and int(
-        experiment["training_imgsz"]
-    ) != int(args.imgsz):
-        raise ValueError(
-            "cache inference resolution must match training resolution for this stage: "
-            f"{args.imgsz} != {experiment['training_imgsz']}"
-        )
+    resolution = inference_resolution_provenance(
+        experiment,
+        args.imgsz,
+        allow_mismatch=args.allow_inference_imgsz_mismatch,
+    )
 
     inference = {
         "imgsz": args.imgsz,
+        **resolution,
         "quantize": args.quantize,
         "retina_masks": args.retina_masks,
         "candidate_confidence": args.candidate_confidence,

@@ -35,3 +35,8 @@ weights/
 
 # Local reports
 deliverables/
+
+# Agent-local instructions and desktop tooling
+AGENTS.md
+.agents/
+.codex/

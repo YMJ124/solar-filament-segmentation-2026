@@ -1,7 +1,8 @@
 """Single-model U-Net implementations.
 
-The compact network exists for CPU tests and smoke checks. Formal experiments
-use one configurable segmentation-models-pytorch U-Net.
+The compact network supports lightweight global and local-refiner experiments;
+the configurable segmentation-models-pytorch U-Net remains available for the
+pretrained global segmentation route.
 """
 
 from __future__ import annotations
@@ -72,6 +73,32 @@ class _UNet(nn.Module):
 class GlobalUNet(_UNet):
     def __init__(self, base=32):
         super().__init__(1, 1, base)
+
+
+class RefinerUNet(_UNet):
+    """Two-channel local refiner for grayscale crops plus coarse masks."""
+
+    def __init__(
+        self,
+        base: int = 16,
+        input_mean: float = 0.326732,
+        input_std: float = 0.223022,
+    ):
+        if input_std <= 0:
+            raise ValueError("input_std must be positive")
+        super().__init__(2, 1, base)
+        self.register_buffer(
+            "input_mean", torch.tensor(float(input_mean), dtype=torch.float32)
+        )
+        self.register_buffer(
+            "input_std", torch.tensor(float(input_std), dtype=torch.float32)
+        )
+
+    def forward(self, x):
+        if x.ndim != 4 or x.shape[1] != 2:
+            raise ValueError("RefinerUNet input must have shape [N, 2, H, W]")
+        image = (x[:, :1] - self.input_mean) / self.input_std
+        return super().forward(torch.cat([image, x[:, 1:2]], dim=1))
 
 
 class SMPUNet(nn.Module):

@@ -1,0 +1,46 @@
+schema_version: 1
+run:
+  run_id: p5_c2_t1_fold0_single_1536
+  candidate: P5-C2
+  detector_fold: 0
+  single_model: true
+  selection_basis: highest_preregistered_heldout_c2_pq_no_unvalidated_ensemble
+  heldout_c2_pq: 0.3572745228661399
+  multifold_global_c2_pq: 0.33956435920473294
+data:
+  root: MAGFiLO_1.0_Kaggle_2026
+  test_image_dir: MAGFiLO_1.0_Kaggle_2026/test/test_images
+  expected_images: 180
+  expected_height: 2048
+  expected_width: 2048
+detector:
+  checkpoint: artifacts/instance/stage_p4/p4_t1_station_preserving_medium_1024_fold0/weights/best.pt
+  checkpoint_sha256: aeaa177d03302eb6267f682f0b7da60ef5238fd35009bc0554f7c1be0d3dd771
+  model_config: configs/instance/stage_p4/p4_t1_station_preserving_medium_1024_fold0.yaml
+  model_config_sha256: 176254a8746be8d8a869d3e2f3b3f6eb62b3d049a73d6e4fe3e96a39e9d2645d
+  imgsz: 1536
+  candidate_confidence: 0.01
+  max_candidates: 50
+  quantize: 16
+  retina_masks: false
+postprocess:
+  confidence: 0.10
+  min_area: 600
+  max_instances: 20
+  force_one: true
+coverage_fallback:
+  enabled: true
+  policy: use_only_when_p5_raw_candidate_count_is_zero
+  submission: artifacts/submissions/yolo26n_fold0_proxy.csv
+  submission_sha256: b8b818238562d247100f4e13ad282b0851991a57fa4378367cc2d8ee44e37643
+refiner:
+  checkpoint: artifacts/instance/stage_p5/p5_c1_formal_multifold/fold0/training/final.pt
+  checkpoint_sha256: 9568b3594e51860fd158b45eb85f4d04e8282bf622369528b581301be7f05f64
+  training_config: configs/instance/stage_p5/p5_c1_formal_fold0.yaml
+  training_config_sha256: 13d14f7850c51cbf143d938b08e5742b20fa281a16fc5e9927ded447d81af9d9
+  mask_threshold: 0.5
+  refinement_policy: boundary_band_preserve_support
+  refinement_policy_sha256: a8366427aafc0817a94c3bdbaa7af3bf4163816220e360169820f3436ded1882
+output:
+  submission: artifacts/submissions/p5_c2_t1_fold0_1536.csv
+  audit: artifacts/submissions/p5_c2_t1_fold0_1536.audit.json

@@ -1,0 +1,39 @@
+schema_version: 1
+experiment:
+  name: p9_d1_t1_i1_incremental_oof
+  seed: 2026
+  parent: p5_c2_boundary_policy
+  scope: three_fold_oof
+data:
+  annotation_file: MAGFiLO_1.0_Kaggle_2026/train/MAGFiLO_1.0_Annotations_kaggle2026_train.json
+  image_dir: MAGFiLO_1.0_Kaggle_2026/train/train_images
+  t1_cache_dirs:
+    - artifacts/instance/stage_p4/p4_t1_station_preserving_medium_1024/candidates_fold0
+    - artifacts/instance/stage_p4/p4_t1_station_preserving_medium_1024/candidates_fold1
+    - artifacts/instance/stage_p4/p4_t1_station_preserving_medium_1024/candidates_fold2
+  i1_cache_dirs:
+    - artifacts/instance/stage_p4/p4_i1_b0_infer1536/candidates_fold0
+    - artifacts/instance/stage_p4/p4_i1_b0_infer1536/candidates_fold1
+    - artifacts/instance/stage_p4/p4_i1_b0_infer1536/candidates_fold2
+postprocess:
+  confidence: 0.10
+  min_area: 600
+  max_instances: 20
+  force_one: true
+augmentation_policy:
+  duplicate_iou: 0.50
+  preserve_all_t1_instances: true
+  append_i1_in_confidence_order: true
+model:
+  type: extra_trees_regressor
+  n_estimators: 500
+  min_samples_leaf: 8
+  max_features: 0.75
+  threshold: 0.0
+  target: marginal_utility_at_t1_global_pq
+gate:
+  minimum_mean_fold_pq_delta: 0.002
+  minimum_positive_folds: 2
+  minimum_fold_delta: -0.002
+  maximum_fold_std_increase: 0.005
+output: artifacts/instance/stage_p9/p9_d1_t1_i1_incremental_oof.json

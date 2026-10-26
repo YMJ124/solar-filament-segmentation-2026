@@ -169,6 +169,28 @@ def test_random_dataset_keeps_one_physical_sample_and_medoid_validation(
     assert dataset["validation_target_policy"] == MEDOID_TARGET_POLICY
 
 
+def test_full_fit_dataset_places_every_image_in_train(tmp_path, tiny_annotator_data):
+    coco, image_dir, fold_manifest, records = tiny_annotator_data
+    output = tmp_path / "full_fit"
+    manifest = build_yolo_segmentation_dataset(
+        records,
+        coco,
+        image_dir,
+        output,
+        validation_fold=None,
+        fold_manifest=fold_manifest,
+        target_policy=MEDOID_TARGET_POLICY,
+    )
+    assert manifest["final_fit"] is True
+    assert manifest["validation_fold"] is None
+    assert manifest["physical_images"] == {"train": 2, "val": 0}
+    assert len(list((output / "images/train").iterdir())) == 2
+    assert not list((output / "images/val").iterdir())
+    dataset = yaml.safe_load((output / "dataset.yaml").read_text())
+    assert dataset["final_fit"] is True
+    assert dataset["val"] == "images/train"
+
+
 def test_parse_yolo_segment_label_builds_ultralytics_fields(tmp_path):
     label = tmp_path / "label.txt"
     label.write_text("0 0.1 0.2 0.5 0.2 0.5 0.8 0.1 0.8\n")

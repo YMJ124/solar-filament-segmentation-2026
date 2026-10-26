@@ -1,0 +1,45 @@
+schema_version: 1
+experiment:
+  name: p9_d2_selected_additions_c2_oof
+  seed: 2026
+  scope: three_fold_oof
+  single_variable: apply_frozen_c2_to_registered_p9_d1_sources
+parents:
+  p9_d1_report: artifacts/instance/stage_p9/p9_d1_t1_i1_incremental_oof.json
+  p9_d1_report_sha256: e6f3e7da4c5c4f0ff8e6f1c33d80ddc07a5264bfd0b9475064b7e1008ee402e0
+  p5_c2_report: artifacts/instance/stage_p5/p5_c2_boundary_policy/multifold.json
+  p5_c2_report_sha256: ca070a9cf38031642627a3062b6b654dee7f41f595d185dd41a97c1864c0ab4d
+refiners:
+  - fold: 0
+    config: configs/instance/stage_p5/p5_c1_formal_fold0.yaml
+    config_sha256: 13d14f7850c51cbf143d938b08e5742b20fa281a16fc5e9927ded447d81af9d9
+    checkpoint: artifacts/instance/stage_p5/p5_c1_formal_multifold/fold0/training/final.pt
+    checkpoint_sha256: 9568b3594e51860fd158b45eb85f4d04e8282bf622369528b581301be7f05f64
+  - fold: 1
+    config: configs/instance/stage_p5/p5_c1_formal_fold1.yaml
+    config_sha256: 35f97122c6dc821b07893f2924f21aee663a5cc6d4b02eae1c13612b5991287e
+    checkpoint: artifacts/instance/stage_p5/p5_c1_formal_multifold/fold1/training/final.pt
+    checkpoint_sha256: 90b5539c26e3dfcfb1e3588189091182899733b44fa4644c11fba59d13682577
+  - fold: 2
+    config: configs/instance/stage_p5/p5_c1_formal_fold2.yaml
+    config_sha256: 12a38ca09208b72894be2a6536fc6c218f5934aaa9cd7bbdfa6d12310dacb676
+    checkpoint: artifacts/instance/stage_p5/p5_c1_formal_multifold/fold2/training/final.pt
+    checkpoint_sha256: 222a50f55530ce833b380b3483d8352bdd0e90f76bdf3c9a8f25ac75e6c96ac1
+refinement_policy:
+  name: boundary_band_preserve_support
+  boundary_kernel: 7
+  mask_threshold: 0.5
+  preserve_all_registered_sources: true
+  reserve_other_source_coarse_support: true
+  per_source_min_area_fallback: 600
+gate:
+  reference: p5_c2_boundary_policy
+  minimum_mean_fold_pq_delta: 0.002
+  minimum_positive_folds: 2
+  minimum_fold_delta: -0.002
+  maximum_fold_std_increase: 0.005
+diagnostics:
+  bootstrap_unit: physical_image_with_all_annotator_records
+  bootstrap_iterations: 10000
+  bootstrap_seed: 2026
+output: artifacts/instance/stage_p9/p9_d2_selected_additions_c2_oof.json

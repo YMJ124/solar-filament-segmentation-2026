@@ -10,7 +10,7 @@ from typing import Any, Mapping
 import numpy as np
 
 from src.io_utils import atomic_write_json
-from src.submission.rle import decode_rle, mask_to_rle, rle_counts
+from src.submission.rle import decode_rle, mask_to_rle, rle_counts, rle_from_counts
 
 
 CACHE_SCHEMA_VERSION = 1
@@ -154,13 +154,13 @@ def load_cache_manifest(cache_dir: str | Path) -> dict[str, Any]:
     return payload
 
 
-def load_candidate_record(
+def _load_candidate_payload(
     cache_dir: str | Path,
     image_entry: Mapping[str, Any],
     *,
     verify_hash: bool = True,
-) -> tuple[np.ndarray, np.ndarray, dict[str, Any]]:
-    """Load one cached image as dense boolean masks plus confidences."""
+) -> dict[str, Any]:
+    """Load and structurally validate one cached candidate JSON payload."""
     cache_dir = Path(cache_dir)
     path = cache_dir / str(image_entry["candidate_file"])
     if not path.is_file():
@@ -184,23 +184,62 @@ def load_candidate_record(
     candidates = payload.get("candidates", [])
     if len(candidates) != int(payload["candidate_count"]):
         raise ValueError(f"candidate count mismatch in {path}")
+    return payload
+
+
+def load_candidate_rles(
+    cache_dir: str | Path,
+    image_entry: Mapping[str, Any],
+    *,
+    verify_hash: bool = True,
+) -> tuple[list[dict[str, Any]], np.ndarray, np.ndarray, dict[str, Any]]:
+    """Load candidates as compressed RLEs without allocating dense masks."""
+    payload = _load_candidate_payload(
+        cache_dir, image_entry, verify_hash=verify_hash
+    )
+    candidates = payload.get("candidates", [])
     height, width = int(payload["height"]), int(payload["width"])
-    if candidates:
-        masks = np.stack(
-            [
-                decode_rle(str(row["segmentation_rle"]), height, width)
-                for row in candidates
-            ]
-        )
-    else:
-        masks = np.zeros((0, height, width), dtype=bool)
+    rles = [
+        rle_from_counts(str(row["segmentation_rle"]), height, width)
+        for row in candidates
+    ]
     scores = np.asarray(
         [float(row["confidence"]) for row in candidates], dtype=np.float32
     )
     if len(scores) and (
         not np.all(np.isfinite(scores)) or np.any(scores < 0) or np.any(scores > 1)
     ):
-        raise ValueError(f"invalid confidence in {path}")
+        raise ValueError(
+            f"invalid confidence in {Path(cache_dir) / str(image_entry['candidate_file'])}"
+        )
+    areas = np.asarray([int(row["area"]) for row in candidates], dtype=np.int64)
+    if np.any(areas < 0):
+        raise ValueError("candidate areas must be non-negative")
+    if len(scores) > 1 and np.any(scores[:-1] < scores[1:]):
+        raise ValueError("cached candidates must be sorted by descending confidence")
+    return rles, scores, areas, payload
+
+
+def load_candidate_record(
+    cache_dir: str | Path,
+    image_entry: Mapping[str, Any],
+    *,
+    verify_hash: bool = True,
+) -> tuple[np.ndarray, np.ndarray, dict[str, Any]]:
+    """Load one cached image as dense boolean masks plus confidences."""
+    rles, scores, _, payload = load_candidate_rles(
+        cache_dir, image_entry, verify_hash=verify_hash
+    )
+    height, width = int(payload["height"]), int(payload["width"])
+    if rles:
+        masks = np.stack(
+            [
+                decode_rle(str(row["counts"].decode("ascii")), height, width)
+                for row in rles
+            ]
+        )
+    else:
+        masks = np.zeros((0, height, width), dtype=bool)
     return masks, scores, payload
 
 

@@ -1,0 +1,38 @@
+schema_version: 1
+run:
+  name: p6_t1_full_fit_1024
+  project: artifacts/instance/stage_p6
+  seed: 2026
+  deterministic: true
+data:
+  dataset_yaml: data/processed/yolo_stage_p6/medoid_all/dataset.yaml
+  target_policy: medoid_annotator_v1
+  sampling_policy: station_preserving_medium_density_400_1600_cap1p5_v1
+  sampling_manifest: data/processed/yolo_stage_p6/sampling/p6_t1_all.json
+  final_fit: true
+model:
+  weights: yolo26n-seg.pt
+  ultralytics_version: 8.4.138
+training:
+  epochs: 5
+  imgsz: 1024
+  batch: 2
+  device: 0
+  workers: 0
+  cache: false
+  save_period: 1
+  amp: true
+  val: false
+  degrees: 180.0
+  fliplr: 0.5
+  flipud: 0.5
+  mosaic: 0.0
+  translate: 0.0
+  scale: 0.0
+  shear: 0.0
+  perspective: 0.0
+  hsv_h: 0.0
+  hsv_s: 0.0
+  hsv_v: 0.0
+  plots: true
+  save: true

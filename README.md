@@ -98,3 +98,48 @@ python -m scripts.run_yolo_submission \
 
 当前 B0/C1/C2 三 Fold 阶段的完整执行顺序与命令见
 [`docs/stage_p1_runbook.md`](docs/stage_p1_runbook.md)。
+
+## 当前最佳实例分割方案
+
+当前公开的研究主线是冻结的两阶段实例分割流程：
+
+```text
+P4-T1 detector + P4-I1 pre-filter candidates
+    -> P9 OOF marginal-utility selector
+    -> P5-C2 boundary-band refiner
+```
+
+P9-D2 在三折 OOF 上相对 P5-C2 将平均 Fold PQ 从 `0.339830155` 提升到
+`0.349892874`（`+0.010062719`），全局 PQ 从 `0.339564359` 提升到
+`0.349438782`；3218 个 source 全部保留。P9-D3 测试 challenger 只追加
+82 个经过 OOF selector 的实例，并保留 P5 的 1240 个基线实例。
+
+重要结果和 SHA256 记录在 [`docs/stage_p9_runbook.md`](docs/stage_p9_runbook.md)
+（本地阶段报告默认被 `.gitignore` 排除）。数据集、训练权重、缓存和提交文件
+不随代码仓库发布；需要使用者按配置中的相对路径准备本地资产。
+
+## P9 复现入口
+
+安装依赖并运行测试：
+
+```bash
+conda run -n solar-filament python -m pip install -r requirements.txt
+conda run -n solar-filament python -m pip install -r requirements-yolo.txt
+conda run -n solar-filament pytest -q
+```
+
+在本地准备 MAGFiLO 数据集、P4/P5 checkpoint 和对应候选缓存后，可按阶段手册
+执行 D1/D2 OOF。最终测试推理入口是：
+
+```bash
+conda run --no-capture-output -n solar-filament \
+  python -m scripts.run_p9_submission \
+  --config configs/submission/p9_d3_p5_fold0_incremental_1536.yaml \
+  --device 0
+```
+
+该入口需要 CUDA，会对每张测试图写入可恢复缓存，并在输出前检查 RLE、覆盖率、
+source 数量以及 P5 base-only 逐 RLE 复现。它不是无数据即可运行的 demo。
+
+当前阶段只保留一次官网 challenger；后续研究以三折 OOF、固定门槛、配对不确定性
+分析和分布漂移诊断为准，不使用 leaderboard 作为调参反馈。

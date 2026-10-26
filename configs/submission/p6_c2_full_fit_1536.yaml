@@ -1,0 +1,47 @@
+schema_version: 1
+run:
+  run_id: p6_c2_full_fit_1536
+  candidate: P6-C2-full-fit
+  detector_fold: null
+  single_model: true
+  final_fit: true
+  selection_basis: locked_p5_c2_protocol_refit_on_all_legal_training_data
+  parent_three_fold_global_pq: 0.33956435920473294
+  parent_public_pq_approximate: 0.31
+data:
+  root: MAGFiLO_1.0_Kaggle_2026
+  test_image_dir: MAGFiLO_1.0_Kaggle_2026/test/test_images
+  expected_images: 180
+  expected_height: 2048
+  expected_width: 2048
+detector:
+  checkpoint: artifacts/instance/stage_p6/p6_t1_full_fit_1024/weights/best.pt
+  checkpoint_sha256: abb340ed04df7e29c50a6f1b6599ca2f448b637a4f7da27535dfc08574bfe59c
+  model_config: configs/instance/stage_p6/p6_t1_full_fit_1024.yaml
+  model_config_sha256: 02cebb37dd23aacd7598c0009c61e9336fb5ef14bf1501c230a3600fc8520b86
+  imgsz: 1536
+  candidate_confidence: 0.01
+  max_candidates: 50
+  quantize: 16
+  retina_masks: false
+postprocess:
+  confidence: 0.10
+  min_area: 600
+  max_instances: 20
+  force_one: true
+coverage_fallback:
+  enabled: true
+  policy: use_parent_p5_submission_only_when_p6_raw_candidate_count_is_zero
+  submission: artifacts/submissions/p5_c2_t1_fold0_1536.csv
+  submission_sha256: 1c65b818290db690823e7bfdd6883d3aec6b2d7a93e78fd2215897490a0585f5
+refiner:
+  checkpoint: artifacts/instance/stage_p6/p6_c2_full_fit_refiner/training/final.pt
+  checkpoint_sha256: 60275a5ec2a40062132dfa615fe165790e6233972f12d1ef4b3adc6ab5786dfe
+  training_config: configs/instance/stage_p6/p6_c2_full_fit_refiner.yaml
+  training_config_sha256: 0a873468388694d932e5ffa4dcc5242a38240f75022899b3d12a409a4fd3760d
+  mask_threshold: 0.5
+  refinement_policy: boundary_band_preserve_support
+  refinement_policy_sha256: a8366427aafc0817a94c3bdbaa7af3bf4163816220e360169820f3436ded1882
+output:
+  submission: artifacts/submissions/p6_c2_full_fit_1536.csv
+  audit: artifacts/submissions/p6_c2_full_fit_1536.audit.json

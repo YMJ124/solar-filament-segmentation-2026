@@ -1,0 +1,51 @@
+schema_version: 1
+experiment:
+  name: p7_h1_refiner_384_fold0
+  protocol_name: p7_h1_single_variable_refiner_resolution_v1
+  seed: 2026
+  heldout_fold: 0
+  training_folds: [1, 2]
+data:
+  data_root: MAGFiLO_1.0_Kaggle_2026
+  annotation_file: MAGFiLO_1.0_Kaggle_2026/train/MAGFiLO_1.0_Annotations_kaggle2026_train.json
+  image_dir: MAGFiLO_1.0_Kaggle_2026/train/train_images
+  cache_dirs:
+    - artifacts/instance/stage_p4/p4_t1_station_preserving_medium_1024/candidates_fold0
+    - artifacts/instance/stage_p4/p4_t1_station_preserving_medium_1024/candidates_fold1
+    - artifacts/instance/stage_p4/p4_t1_station_preserving_medium_1024/candidates_fold2
+  training_crop_dir: artifacts/instance/stage_p7/p7_h1_refiner_384_fold0/train_crops_folds1_2
+  panel_file: data/manifests/screen_fold0_32.json
+postprocess:
+  confidence: 0.10
+  min_area: 400
+  max_instances: 12
+  force_one: true
+crop:
+  output_size: 384
+  context_scale: 1.5
+  minimum_side: 64
+model:
+  architecture: compact_refiner_unet
+  base_channels: 16
+  input_mean: 0.326732
+  input_std: 0.223022
+loss:
+  name: bce_dice_boundary
+  boundary_weight: 4.0
+  boundary_kernel: 7
+training:
+  epochs: 12
+  batch_size: 16
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  workers: 0
+  amp: true
+  seed: 2026
+  deterministic: true
+  output_dir: artifacts/instance/stage_p7/p7_h1_refiner_384_fold0/training
+evaluation:
+  scope: fixed_panel
+  mask_threshold: 0.5
+  baseline_panel_report: artifacts/instance/stage_p4/p4_t1_station_preserving_medium_1024/panel32.json
+  minimum_panel_pq_delta: 0.010
+  output: artifacts/instance/stage_p7/p7_h1_refiner_384_fold0/panel32_c2.json

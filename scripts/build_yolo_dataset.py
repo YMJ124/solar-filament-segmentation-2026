@@ -21,6 +21,11 @@ def main() -> None:
     parser.add_argument("--data-root", default="MAGFiLO_1.0_Kaggle_2026")
     parser.add_argument("--fold-manifest", default="data/manifests/train_folds.csv")
     parser.add_argument("--fold", type=int, default=0)
+    parser.add_argument(
+        "--all-data",
+        action="store_true",
+        help="Build a final-fit dataset with every fold in the training split.",
+    )
     parser.add_argument("--output", default="data/processed/yolo_fold0")
     parser.add_argument(
         "--target-policy",
@@ -42,7 +47,7 @@ def main() -> None:
         coco,
         root / "train/train_images",
         args.output,
-        validation_fold=args.fold,
+        validation_fold=None if args.all_data else args.fold,
         fold_manifest=args.fold_manifest,
         target_policy=target_policy,
         selection_seed=args.selection_seed,

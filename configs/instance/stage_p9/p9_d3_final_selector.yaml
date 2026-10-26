@@ -1,0 +1,24 @@
+schema_version: 1
+experiment:
+  name: p9_d3_final_selector
+  seed: 2026
+  scope: all_registered_oof_candidate_rows
+  purpose: leakage_safe_test_deployment
+parents:
+  p9_d1_report: artifacts/instance/stage_p9/p9_d1_t1_i1_incremental_oof.json
+  p9_d1_report_sha256: e6f3e7da4c5c4f0ff8e6f1c33d80ddc07a5264bfd0b9475064b7e1008ee402e0
+  p9_d2_report: artifacts/instance/stage_p9/p9_d2_selected_additions_c2_oof.json
+  p9_d2_report_sha256: 93a01327e787341eac1959cc4fd367f476c5dd64f7d96af48a149252ef620dbe
+model:
+  type: extra_trees_regressor
+  n_estimators: 500
+  min_samples_leaf: 8
+  max_features: 0.75
+  threshold: 0.0
+  target: marginal_utility_at_t1_global_pq
+training:
+  use_all_oof_candidate_rows: true
+  permit_test_features_or_labels: false
+outputs:
+  model: artifacts/instance/stage_p9/p9_d3_final_selector.joblib
+  report: artifacts/instance/stage_p9/p9_d3_final_selector.json

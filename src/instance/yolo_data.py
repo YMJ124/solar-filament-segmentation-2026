@@ -65,7 +65,7 @@ def build_yolo_segmentation_dataset(
     image_dir: str | Path,
     output_dir: str | Path,
     *,
-    validation_fold: int,
+    validation_fold: int | None,
     fold_manifest: str | Path,
     target_policy: str = MEDOID_TARGET_POLICY,
     selection_seed: int = 2026,
@@ -94,7 +94,12 @@ def build_yolo_segmentation_dataset(
     for record in selected:
         file_name = str(record["file_name"])
         image_id = str(record["selected_image_id"])
-        split = "val" if int(record["fold"]) == validation_fold else "train"
+        split = (
+            "val"
+            if validation_fold is not None
+            and int(record["fold"]) == validation_fold
+            else "train"
+        )
         source = image_dir / file_name
         if not source.is_file():
             raise FileNotFoundError(source)
@@ -148,9 +153,13 @@ def build_yolo_segmentation_dataset(
     dataset_yaml: dict[str, Any] = {
         "path": str(output.resolve()),
         "train": "images/train",
-        "val": "images/val",
+        # Ultralytics requires a val entry while parsing the dataset YAML even
+        # when final-fit training sets val=false.  Reuse train only as a path
+        # placeholder; no in-sample metric is used for model selection.
+        "val": "images/val" if validation_fold is not None else "images/train",
         "names": {0: "filament"},
         "target_policy": target_policy,
+        "final_fit": validation_fold is None,
     }
     annotator_manifest_path = output / "annotator_manifest.json"
     if target_policy == RANDOM_ANNOTATOR_TARGET_POLICY:
@@ -190,7 +199,10 @@ def build_yolo_segmentation_dataset(
             else None
         ),
         "annotator_label_files": annotator_label_count,
-        "validation_fold": int(validation_fold),
+        "validation_fold": (
+            int(validation_fold) if validation_fold is not None else None
+        ),
+        "final_fit": validation_fold is None,
         "physical_images": split_counts,
         "instances": instance_counts,
         "empty_images": empty_counts,

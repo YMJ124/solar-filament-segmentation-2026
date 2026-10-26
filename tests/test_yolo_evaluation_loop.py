@@ -10,6 +10,7 @@ from src.instance.yolo_cache import (
     CACHE_SCHEMA_VERSION,
     load_cache_manifest,
     load_candidate_record,
+    load_candidate_rles,
     sha256_file,
     validate_annotation_provenance,
     validate_search_space,
@@ -93,7 +94,14 @@ def test_candidate_cache_round_trip_and_offline_grid(tmp_path, diagnostic_coco):
     atomic_write_json(cache / "manifest.json", manifest)
 
     loaded_manifest = load_cache_manifest(cache)
+    loaded_rles, rle_scores, rle_areas, rle_payload = load_candidate_rles(
+        cache, entry
+    )
     loaded_masks, loaded_scores, payload = load_candidate_record(cache, entry)
+    assert len(loaded_rles) == 2
+    np.testing.assert_allclose(rle_scores, scores)
+    np.testing.assert_array_equal(rle_areas, masks.reshape(2, -1).sum(axis=1))
+    assert rle_payload == payload
     np.testing.assert_array_equal(loaded_masks, masks)
     np.testing.assert_allclose(loaded_scores, scores)
     assert payload["image_ids"] == ["annotator-1"]

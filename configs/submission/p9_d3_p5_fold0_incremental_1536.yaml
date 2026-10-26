@@ -1,0 +1,75 @@
+schema_version: 1
+run:
+  run_id: p9_d3_p5_fold0_incremental_1536
+  candidate: P9-D3
+  deployment_parent: P5-C2 Fold0
+  decision_basis: promoted_three_fold_p9_d2_oof
+parents:
+  p9_d2_report: artifacts/instance/stage_p9/p9_d2_selected_additions_c2_oof.json
+  p9_d2_report_sha256: 93a01327e787341eac1959cc4fd367f476c5dd64f7d96af48a149252ef620dbe
+  selector_report: artifacts/instance/stage_p9/p9_d3_final_selector.json
+  selector_report_sha256: b7b2a7668044a47585f3be534280659d74afd38419c6b9b820c6482f565ae28a
+  selector_model: artifacts/instance/stage_p9/p9_d3_final_selector.joblib
+  selector_model_sha256: e202193f594b000a3bcc8126275a8e17913c3d7d07c763f4350725f9258e4741
+  p5_submission: artifacts/submissions/p5_c2_t1_fold0_1536.csv
+  p5_submission_sha256: 1c65b818290db690823e7bfdd6883d3aec6b2d7a93e78fd2215897490a0585f5
+  p5_audit: artifacts/submissions/p5_c2_t1_fold0_1536.audit.json
+  p5_audit_sha256: 36c7018853854750f59aef79af186532a734e4ba6e9659651fb94f89bc657cd9
+data:
+  test_image_dir: MAGFiLO_1.0_Kaggle_2026/test/test_images
+  expected_images: 180
+  expected_height: 2048
+  expected_width: 2048
+detectors:
+  t1:
+    checkpoint: artifacts/instance/stage_p4/p4_t1_station_preserving_medium_1024_fold0/weights/best.pt
+    checkpoint_sha256: aeaa177d03302eb6267f682f0b7da60ef5238fd35009bc0554f7c1be0d3dd771
+    model_config: configs/instance/stage_p4/p4_t1_station_preserving_medium_1024_fold0.yaml
+    model_config_sha256: 176254a8746be8d8a869d3e2f3b3f6eb62b3d049a73d6e4fe3e96a39e9d2645d
+    imgsz: 1536
+    candidate_confidence: 0.01
+    max_candidates: 50
+    quantize: 16
+    retina_masks: false
+  i1:
+    checkpoint: artifacts/instance/stage_p1/b0_medoid_1024_fold0/weights/best.pt
+    checkpoint_sha256: 39c09cbc82b8b15e6c7ef1d2aaa20980676b05b5dd4e1d184eaff560b9fae45c
+    model_config: configs/instance/stage_p1/b0_medoid_1024_fold0.yaml
+    model_config_sha256: 257512bbd416706ed081450d18b2a66a57d8cb44bb605e1b42d8dc19f2a6c792
+    imgsz: 1536
+    candidate_confidence: 0.01
+    max_candidates: 50
+    quantize: 16
+    retina_masks: false
+postprocess:
+  confidence: 0.10
+  min_area: 600
+  max_instances: 20
+  force_one: true
+augmentation_policy:
+  duplicate_iou: 0.50
+  preserve_all_t1_instances: true
+  append_i1_in_confidence_order: true
+selector:
+  threshold: 0.0
+  strict_greater: true
+refiner:
+  checkpoint: artifacts/instance/stage_p5/p5_c1_formal_multifold/fold0/training/final.pt
+  checkpoint_sha256: 9568b3594e51860fd158b45eb85f4d04e8282bf622369528b581301be7f05f64
+  training_config: configs/instance/stage_p5/p5_c1_formal_fold0.yaml
+  training_config_sha256: 13d14f7850c51cbf143d938b08e5742b20fa281a16fc5e9927ded447d81af9d9
+  mask_threshold: 0.5
+  boundary_kernel: 7
+  refinement_policy: boundary_band_preserve_support
+  refinement_policy_sha256: a8366427aafc0817a94c3bdbaa7af3bf4163816220e360169820f3436ded1882
+invariants:
+  reproduce_p5_base_only_rles_exactly: true
+  preserve_all_t1_source_ids: true
+  reserve_other_source_coarse_support: true
+  skip_incremental_on_p5_coverage_fallback: true
+  forbid_cpu_fallback: true
+resume:
+  cache_dir: artifacts/instance/stage_p9/p9_d3_test_cache
+output:
+  submission: artifacts/submissions/p9_d3_p5_fold0_incremental_1536.csv
+  audit: artifacts/submissions/p9_d3_p5_fold0_incremental_1536.audit.json

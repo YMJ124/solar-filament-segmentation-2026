@@ -1,0 +1,39 @@
+schema_version: 1
+experiment:
+  name: p5_c2_boundary_band_preserve_support
+  parent_protocol_sha256: 6102036f37ccca307b660f8f2cdbc22b28994ec4c1ee9d4c0c6a453ec5a6cbf3
+  parent_candidate: p5_c1_formal_multifold
+refinement_policy:
+  name: boundary_band_preserve_support
+  boundary_kernel_source: loss.boundary_kernel
+  expected_boundary_kernel: 7
+  preserve_deep_coarse_interior: true
+  reserve_other_source_coarse_support: true
+  per_source_min_area_fallback: 600
+  overwrite_parent_artifacts: false
+gate_vs_t1:
+  minimum_mean_pq_delta: 0.008
+  minimum_positive_folds: 2
+  minimum_fold_delta: -0.005
+  maximum_std_increase: 0.010
+gate_vs_c1:
+  maximum_mean_pq_drop: 0.003
+  maximum_fold_pq_drop: 0.005
+  minimum_hit_pairs_delta: 0
+folds:
+  "0":
+    training_config: configs/instance/stage_p5/p5_c1_formal_fold0.yaml
+    checkpoint: artifacts/instance/stage_p5/p5_c1_formal_multifold/fold0/training/final.pt
+    reference_report: artifacts/instance/stage_p5/p5_c1_formal_multifold/fold0/full_fold.json
+    candidate_report: artifacts/instance/stage_p5/p5_c2_boundary_policy/fold0/full_fold.json
+  "1":
+    training_config: configs/instance/stage_p5/p5_c1_formal_fold1.yaml
+    checkpoint: artifacts/instance/stage_p5/p5_c1_formal_multifold/fold1/training/final.pt
+    reference_report: artifacts/instance/stage_p5/p5_c1_formal_multifold/fold1/full_fold.json
+    candidate_report: artifacts/instance/stage_p5/p5_c2_boundary_policy/fold1/full_fold.json
+  "2":
+    training_config: configs/instance/stage_p5/p5_c1_formal_fold2.yaml
+    checkpoint: artifacts/instance/stage_p5/p5_c1_formal_multifold/fold2/training/final.pt
+    reference_report: artifacts/instance/stage_p5/p5_c1_formal_multifold/fold2/full_fold.json
+    candidate_report: artifacts/instance/stage_p5/p5_c2_boundary_policy/fold2/full_fold.json
+output: artifacts/instance/stage_p5/p5_c2_boundary_policy/multifold.json

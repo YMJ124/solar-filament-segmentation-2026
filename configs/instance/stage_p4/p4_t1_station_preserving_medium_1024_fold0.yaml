@@ -1,0 +1,37 @@
+schema_version: 1
+run:
+  name: p4_t1_station_preserving_medium_1024_fold0
+  project: artifacts/instance/stage_p4
+  seed: 2026
+  deterministic: true
+data:
+  dataset_yaml: data/processed/yolo_stage_p1/medoid_fold0/dataset.yaml
+  target_policy: medoid_annotator_v1
+  sampling_policy: station_preserving_medium_density_400_1600_cap1p5_v1
+  sampling_manifest: data/processed/yolo_stage_p4/sampling/p4_t1_fold0.json
+model:
+  weights: yolo26n-seg.pt
+  ultralytics_version: 8.4.138
+training:
+  epochs: 5
+  imgsz: 1024
+  batch: 2
+  device: 0
+  workers: 0
+  cache: false
+  save_period: 1
+  amp: true
+  patience: 5
+  degrees: 180.0
+  fliplr: 0.5
+  flipud: 0.5
+  mosaic: 0.0
+  translate: 0.0
+  scale: 0.0
+  shear: 0.0
+  perspective: 0.0
+  hsv_h: 0.0
+  hsv_s: 0.0
+  hsv_v: 0.0
+  plots: true
+  save: true

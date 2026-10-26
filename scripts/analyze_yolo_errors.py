@@ -234,10 +234,16 @@ def main() -> None:
 
     category_counts = Counter(category for row in rows for category in row["categories"])
     index_payload = {
+        "report_type": "yolo_error_analysis_v2",
         "cache_dir": str(args.cache_dir.resolve()),
         "cache_run_config_sha256": manifest["run_config_sha256"],
         "checkpoint_sha256": manifest["checkpoint"]["sha256"],
         "fold": manifest["dataset"].get("fold"),
+        "annotation_sha256": manifest["dataset"].get("annotation_sha256"),
+        "fold_manifest_sha256": manifest["dataset"].get("fold_manifest_sha256"),
+        "training_signature_sha256": manifest.get("experiment", {}).get(
+            "training_signature_sha256"
+        ),
         "postprocess": config.to_dict(),
         "diagnostics": {
             "small_instance_area": args.small_instance_area,

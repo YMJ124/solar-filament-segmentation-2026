@@ -1,0 +1,66 @@
+schema_version: 1
+run:
+  run_id: p8_e1_threefold_4tta_support2_maxarea_1536
+  candidate: P8-E1
+  validation_status: leaderboard_calibration_no_clean_ensemble_oof
+  evidence: three_fold_p5_models_plus_public_0p35_consensus_pattern
+data:
+  test_image_dir: MAGFiLO_1.0_Kaggle_2026/test/test_images
+  expected_images: 180
+  expected_height: 2048
+  expected_width: 2048
+detector_inference:
+  imgsz: 1536
+  candidate_confidence: 0.01
+  max_candidates: 50
+  quantize: 16
+  retina_masks: false
+postprocess:
+  confidence: 0.10
+  min_area: 600
+  max_instances: 20
+  force_one: true
+tta:
+  transforms: [identity, hflip, vflip, rot180]
+consensus:
+  iou_threshold: 0.50
+  minimum_fold_support: 2
+  representative: max_area
+  min_area_after_deoverlap: 600
+  max_instances: 20
+members:
+  - fold: 0
+    detector_checkpoint: artifacts/instance/stage_p4/p4_t1_station_preserving_medium_1024_fold0/weights/best.pt
+    detector_checkpoint_sha256: aeaa177d03302eb6267f682f0b7da60ef5238fd35009bc0554f7c1be0d3dd771
+    detector_config: configs/instance/stage_p4/p4_t1_station_preserving_medium_1024_fold0.yaml
+    detector_config_sha256: 176254a8746be8d8a869d3e2f3b3f6eb62b3d049a73d6e4fe3e96a39e9d2645d
+    refiner_checkpoint: artifacts/instance/stage_p5/p5_c1_formal_multifold/fold0/training/final.pt
+    refiner_checkpoint_sha256: 9568b3594e51860fd158b45eb85f4d04e8282bf622369528b581301be7f05f64
+    refiner_config: configs/instance/stage_p5/p5_c1_formal_fold0.yaml
+    refiner_config_sha256: 13d14f7850c51cbf143d938b08e5742b20fa281a16fc5e9927ded447d81af9d9
+  - fold: 1
+    detector_checkpoint: artifacts/instance/stage_p4/p4_t1_station_preserving_medium_1024_fold1/weights/best.pt
+    detector_checkpoint_sha256: 6e4ab18871ac94ecd49eeb9801e719bc8c0085dd1b6493a6f4feb84b3b04ad79
+    detector_config: configs/instance/stage_p4/p4_t1_station_preserving_medium_1024_fold1.yaml
+    detector_config_sha256: e442c8a910d7ce405d6a3e6520e6577d5519877fc9a6c0865ca9d1d65d2e7acf
+    refiner_checkpoint: artifacts/instance/stage_p5/p5_c1_formal_multifold/fold1/training/final.pt
+    refiner_checkpoint_sha256: 90b5539c26e3dfcfb1e3588189091182899733b44fa4644c11fba59d13682577
+    refiner_config: configs/instance/stage_p5/p5_c1_formal_fold1.yaml
+    refiner_config_sha256: 35f97122c6dc821b07893f2924f21aee663a5cc6d4b02eae1c13612b5991287e
+  - fold: 2
+    detector_checkpoint: artifacts/instance/stage_p4/p4_t1_station_preserving_medium_1024_fold2/weights/best.pt
+    detector_checkpoint_sha256: 694a72812877cf57ae9e2ae6579ab2519ca581b161b1c1b11eff03750f3a893a
+    detector_config: configs/instance/stage_p4/p4_t1_station_preserving_medium_1024_fold2.yaml
+    detector_config_sha256: 139bd56343889e07f1fa2ca144624a097e26a8ad2d620a9e30b05c483a918fc4
+    refiner_checkpoint: artifacts/instance/stage_p5/p5_c1_formal_multifold/fold2/training/final.pt
+    refiner_checkpoint_sha256: 222a50f55530ce833b380b3483d8352bdd0e90f76bdf3c9a8f25ac75e6c96ac1
+    refiner_config: configs/instance/stage_p5/p5_c1_formal_fold2.yaml
+    refiner_config_sha256: 12a38ca09208b72894be2a6536fc6c218f5934aaa9cd7bbdfa6d12310dacb676
+fallback:
+  policy: use_p5_fold0_only_when_consensus_yields_no_instance
+  submission: artifacts/submissions/p5_c2_t1_fold0_1536.csv
+  submission_sha256: 1c65b818290db690823e7bfdd6883d3aec6b2d7a93e78fd2215897490a0585f5
+output:
+  cache_root: artifacts/instance/stage_p8/p8_e1_threefold_4tta_consensus/member_cache
+  submission: artifacts/submissions/p8_e1_threefold_4tta_support2_maxarea_1536.csv
+  audit: artifacts/submissions/p8_e1_threefold_4tta_support2_maxarea_1536.audit.json
